@@ -19,9 +19,11 @@
 import { detectPlatform, IMPLEMENTED, PLATFORMS } from '../_lib/platforms.js';
 // 已移植的平台解析器在此静态注册（待移植平台见 Theadvocate-bit/short_videos）。
 import { parse as parseBilibili } from '../_lib/parsers/bilibili.js';
+import { parse as parseToutiao } from '../_lib/parsers/toutiao.js';
 
 const PARSERS = {
   bilibili: parseBilibili,
+  toutiao: parseToutiao,
 };
 
 /* ============================ 解析（/api/parse） ============================ */
@@ -82,8 +84,15 @@ async function handleParse(context) {
     return jsonOut({ code: -2, msg: `平台「${platform}」解析器加载失败` }, 500);
   }
 
+  // 解析器可用的环境：BILIBILI_COOKIE 等平台 cookie + 本部署的防盗链代理基地址
+  // （douyin/weibo 等解析出的媒体直链需经 /api/proxy 过防盗链，解析器据此拼代理 URL）
+  const env = {
+    ...(context.env || {}),
+    PROXY_BASE: `${url.protocol}//${url.host}/api/proxy?proxyurl=`,
+  };
+
   try {
-    return await parser(target, context.env || {});
+    return await parser(target, env);
   } catch (err) {
     const timeout = err?.name === 'AbortError' || err?.name === 'TimeoutError';
     return jsonOut(

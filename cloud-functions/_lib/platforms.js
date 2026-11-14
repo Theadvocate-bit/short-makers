@@ -19,7 +19,7 @@ export const PLATFORMS = [
 ];
 
 /** 已经移植到 Node.js 的平台（其余在 README 标注为待移植） */
-export const IMPLEMENTED = new Set(['bilibili']);
+export const IMPLEMENTED = new Set(['bilibili', 'toutiao']);
 
 /**
  * 按 URL 识别平台 key。
