@@ -52,12 +52,19 @@
   <h2>平台移植状态</h2>
   <table>
     <tr><th>平台</th><th>状态</th></tr>
-    <tr><td>bilibili</td><td class="ok">✅ 已移植</td></tr>
-    <tr><td>douyin / kuaishou / xiaohongshu / weibo / toutiao</td><td class="todo">⏳ 待移植</td></tr>
-    <tr><td>pipixia / pipigx / zuiyou / 网易云</td><td class="todo">⏳ 待移植</td></tr>
+    <tr><td>bilibili</td><td class="ok">✅ 已移植（免 cookie 可用）</td></tr>
+    <tr><td>toutiao</td><td class="ok">✅ 已移植</td></tr>
+    <tr><td>douyin</td><td class="ok">✅ 已移植</td></tr>
+    <tr><td>kuaishou</td><td class="ok">✅ 已移植</td></tr>
+    <tr><td>xiaohongshu</td><td class="ok">✅ 已移植</td></tr>
+    <tr><td>weibo</td><td class="ok">✅ 已移植</td></tr>
+    <tr><td>pipixia</td><td class="ok">✅ 已移植</td></tr>
+    <tr><td>pipigx</td><td class="ok">✅ 已移植</td></tr>
+    <tr><td>zuiyou</td><td class="ok">✅ 已移植</td></tr>
+    <tr><td>网易云 wyy</td><td class="ok">✅ 已移植</td></tr>
     <tr><td>媒体直链代理</td><td class="ok">✅ 已移植</td></tr>
   </table>
-  <p class="sub" style="margin-top:.6rem">待移植平台调用会返回 <code>code:-2</code> 明确提示。</p>
+  <p class="sub" style="margin-top:.6rem">部分平台对数据中心 IP 有风控，必要时在 Makers 控制台配置对应 <code>&lt;PLATFORM&gt;_COOKIE</code> 环境变量。</p>
 
   <footer>
     移植自 <a href="https://github.com/Theadvocate-bit/short_videos" target="_blank">short_videos</a>

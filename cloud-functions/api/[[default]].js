@@ -18,12 +18,29 @@
 
 import { detectPlatform, IMPLEMENTED, PLATFORMS } from '../_lib/platforms.js';
 // 已移植的平台解析器在此静态注册（待移植平台见 Theadvocate-bit/short_videos）。
+// 注意：全部静态 import，且各模块只导出 parse（避免 esbuild onRequest 符号冲突）。
 import { parse as parseBilibili } from '../_lib/parsers/bilibili.js';
 import { parse as parseToutiao } from '../_lib/parsers/toutiao.js';
+import { parse as parseDouyin } from '../_lib/parsers/douyin.js';
+import { parse as parseKuaishou } from '../_lib/parsers/kuaishou.js';
+import { parse as parseXiaohongshu } from '../_lib/parsers/xiaohongshu.js';
+import { parse as parseWeibo } from '../_lib/parsers/weibo.js';
+import { parse as parsePipixia } from '../_lib/parsers/pipixia.js';
+import { parse as parsePipigx } from '../_lib/parsers/pipigx.js';
+import { parse as parseZuiyou } from '../_lib/parsers/zuiyou.js';
+import { parse as parseWyy } from '../_lib/parsers/wyy.js';
 
 const PARSERS = {
   bilibili: parseBilibili,
   toutiao: parseToutiao,
+  douyin: parseDouyin,
+  kuaishou: parseKuaishou,
+  xiaohongshu: parseXiaohongshu,
+  weibo: parseWeibo,
+  pipixia: parsePipixia,
+  pipigx: parsePipigx,
+  zuiyou: parseZuiyou,
+  wyy: parseWyy,
 };
 
 /* ============================ 解析（/api/parse） ============================ */

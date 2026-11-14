@@ -16,10 +16,22 @@ export const PLATFORMS = [
   { key: 'pipixia',     keywords: ['pipix'] },
   { key: 'pipigx',      keywords: ['ippzone', 'pipigx'] },
   { key: 'zuiyou',      keywords: ['izuiyou'] },
+  { key: 'wyy',         keywords: ['music.163.com', '163.com/song', '163cn.tv'] },
 ];
 
 /** 已经移植到 Node.js 的平台（其余在 README 标注为待移植） */
-export const IMPLEMENTED = new Set(['bilibili', 'toutiao']);
+export const IMPLEMENTED = new Set([
+  'bilibili',
+  'toutiao',
+  'douyin',
+  'kuaishou',
+  'xiaohongshu',
+  'weibo',
+  'pipixia',
+  'pipigx',
+  'zuiyou',
+  'wyy',
+]);
 
 /**
  * 按 URL 识别平台 key。

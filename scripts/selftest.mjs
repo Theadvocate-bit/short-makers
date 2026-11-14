@@ -32,7 +32,7 @@ check('识别 weibo', detectPlatform('https://weibo.com/x') === 'weibo');
 check('识别 toutiao', detectPlatform('https://www.toutiao.com/x') === 'toutiao');
 check('无法识别返回 null', detectPlatform('https://example.com/x') === null);
 check('IMPLEMENTED 含 bilibili', IMPLEMENTED.has('bilibili'));
-check('douyin 标记为待移植', !IMPLEMENTED.has('douyin'));
+check('douyin 已实现', IMPLEMENTED.has('douyin'));
 check('平台表非空', PLATFORMS.length >= 9);
 
 /* ---------- 离线：调度路由 ---------- */
@@ -52,10 +52,9 @@ async function callParse(url) {
   check('不支持平台 -> code -1 + supported 列表', j.code === -1 && Array.isArray(j.supported));
 }
 {
-  // douyin 已识别但未移植 -> code -2 明确提示
-  const res = await callParse('https://www.douyin.com/video/123');
-  const j = await res.json();
-  check('未移植平台 -> code -2 明确提示', j.code === -2 && j.platform === 'douyin');
+  // 全平台已移植：PLATFORMS 里每个 key 都应在 IMPLEMENTED 中（完整覆盖校验）
+  const allImplemented = PLATFORMS.every((p) => IMPLEMENTED.has(p.key));
+  check('所有平台均已实现(无遗留 code -2)', allImplemented);
 }
 
 /* ---------- 联网：Bilibili 真实解析 ---------- */
