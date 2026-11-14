@@ -69,6 +69,17 @@
       <button id="weibo-logout-btn" onclick="weiboLogout()" style="display:none;">退出</button>
     </div>
     <p class="note" style="margin-top:8px;">微博登录方式：在浏览器登录 <a href="https://m.weibo.cn" target="_blank">m.weibo.cn</a> 后，按 F12 → 应用/Application → Cookies，复制整段 Cookie（或至少含 <code>SUB=</code> 那条）粘贴到上面保存。微博扫码接口反爬较严，暂用 Cookie 粘贴方式。</p>
+
+    <div class="login-row" style="margin-top:14px;">
+      <span class="plat-name">网易云音乐</span>
+      <span id="wyy-status" class="login-status">未登录</span>
+      <button id="wyy-login-btn" onclick="wyyLogin()">扫码登录</button>
+      <button id="wyy-logout-btn" onclick="wyyLogout()" style="display:none;">退出</button>
+    </div>
+    <div id="wyy-qr-area" style="display:none;margin-top:14px;">
+      <img id="wyy-qr-img" alt="扫码登录二维码" style="width:180px;height:180px;border:1px solid var(--border);border-radius:8px;">
+      <p id="wyy-qr-tip" class="note">请用网易云音乐 App 扫码登录</p>
+    </div>
   </div>
 
   <div class="card test-box">
@@ -136,6 +147,10 @@ async function doParse() {
       // 微博链接：已存 cookie 则带 cookie 走 weibo 接口（可绕过访客墙出数据）
       const wk = localStorage.getItem('weibo_cookie');
       url = '/api/weibo?url=' + encodeURIComponent(input) + (wk ? '&cookie=' + encodeURIComponent(wk) : '');
+    } else if (/music\.163\.com|163cn\.tv/i.test(input)) {
+      // 网易云链接：已登录则带 MUSIC_U 走 wyy 接口（可拿播放地址）
+      const wy = localStorage.getItem('wyy_music_u');
+      url = '/api/wyy?url=' + encodeURIComponent(input) + '&level=standard&type=json' + (wy ? '&cookie=' + encodeURIComponent(wy) : '');
     } else {
       url = '/api/sv?url=' + encodeURIComponent(input);
     }
@@ -242,6 +257,69 @@ function weiboLogout() {
   updateWeiboUI();
 }
 updateWeiboUI();
+
+// ===== 网易云音乐 扫码登录 =====
+let wyyPollTimer = null;
+function setWyyStatus(text, ok) {
+  const el = document.getElementById('wyy-status');
+  el.textContent = text;
+  el.className = 'login-status' + (ok ? ' ok' : '');
+}
+function updateWyyUI() {
+  const logged = !!localStorage.getItem('wyy_music_u');
+  document.getElementById('wyy-login-btn').style.display = logged ? 'none' : '';
+  document.getElementById('wyy-logout-btn').style.display = logged ? '' : 'none';
+  setWyyStatus(logged ? '已登录' : '未登录', logged);
+}
+function wyyLogout() {
+  localStorage.removeItem('wyy_music_u');
+  stopWyyPoll();
+  document.getElementById('wyy-qr-area').style.display = 'none';
+  updateWyyUI();
+}
+function stopWyyPoll() {
+  if (wyyPollTimer) { clearInterval(wyyPollTimer); wyyPollTimer = null; }
+}
+async function wyyLogin() {
+  const btn = document.getElementById('wyy-login-btn');
+  btn.disabled = true; btn.textContent = '获取二维码...';
+  try {
+    const resp = await fetch('/api/wyy?login=gen');
+    const gen = await resp.json();
+    if (gen.code !== 0 || !gen.url) { alert('获取二维码失败：' + (gen.msg || '未知错误')); return; }
+    const dataUrl = await QRCode.toDataURL(gen.url, { width: 200, margin: 1 });
+    document.getElementById('wyy-qr-img').src = dataUrl;
+    document.getElementById('wyy-qr-area').style.display = 'block';
+    setWyyStatus('等待扫码', false);
+    document.getElementById('wyy-qr-tip').textContent = '请用网易云音乐 App 扫码登录';
+    const key = gen.unikey;
+    stopWyyPoll();
+    wyyPollTimer = setInterval(async () => {
+      try {
+        const pr = await fetch('/api/wyy?login=poll&key=' + encodeURIComponent(key));
+        const poll = await pr.json();
+        if (poll.code === 0 && poll.music_u) {
+          localStorage.setItem('wyy_music_u', poll.music_u);
+          stopWyyPoll();
+          document.getElementById('wyy-qr-area').style.display = 'none';
+          updateWyyUI();
+        } else if (poll.code === 1) {
+          setWyyStatus('已扫码，请在手机确认', false);
+        } else if (poll.code === -1) {
+          stopWyyPoll();
+          setWyyStatus('二维码已过期', false);
+          document.getElementById('wyy-qr-tip').textContent = '二维码已过期，请重新点击「扫码登录」';
+          document.getElementById('wyy-qr-img').src = '';
+        }
+      } catch (e) { /* 继续轮询 */ }
+    }, 2000);
+  } catch (e) {
+    alert('登录出错：' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '扫码登录';
+  }
+}
+updateWyyUI();
 </script>
 </body>
 </html>
