@@ -12,7 +12,7 @@ const CORS_HEADERS = {
   "content-type": "application/json; charset=utf-8",
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "GET,POST,OPTIONS",
-  "access-control-allow-headers": "Content-Type",
+  "access-control-allow-headers": "Content-Type,x-bili-cookie,x-weibo-cookie,x-wyy-cookie",
 };
 
 // PHP base64_encode 等价实现（按字节编码）
@@ -48,9 +48,16 @@ function jsonDecode(text) {
 }
 
 // 对应 PHP weibo_curl()：POST 微博组件接口（page 参数不做 urlencode，与 PHP 一致）
-async function weiboCurl(id) {
-  const cookie =
-    "login_sid_t=6b652c77c1a4bc50cb9d06b24923210d; cross_origin_proto=SSL; WBStorage=2ceabba76d81138d|undefined; _s_tentry=passport.weibo.com; Apache=7330066378690.048.1625663522444; SINAGLOBAL=7330066378690.048.1625663522444; ULV=1625663522450:1:1:1:7330066378690.048.1625663522444:; TC-V-WEIBO-G0=35846f552801987f8c1e8f7cec0e2230; SUB=_2AkMXuScYf8NxqwJRmf8RzmnhaoxwzwDEieKh5dbDJRMxHRl-yT9jqhALtRB6PDkJ9w8OaqJAbsgjdEWtIcilcZxHG7rw; SUBP=0033WrSXqPxfM72-Ws9jqgMF55529P9D9W5Qx3Mf.RCfFAKC3smW0px0; XSRF-TOKEN=JQSK02Ijtm4Fri-YIRu0-vNj";
+// 微博组件接口 Cookie：登录态可选（opts.weiboCookie > 环境变量 WEIBO_COOKIE > 原 PHP 硬编码兜底）
+function resolveWeiboCookie(opts, env) {
+  return (
+    (opts && opts.weiboCookie ? String(opts.weiboCookie) : "") ||
+    (env && env.WEIBO_COOKIE ? String(env.WEIBO_COOKIE) : "") ||
+    "login_sid_t=6b652c77c1a4bc50cb9d06b24923210d; cross_origin_proto=SSL; WBStorage=2ceabba76d81138d|undefined; _s_tentry=passport.weibo.com; Apache=7330066378690.048.1625663522444; SINAGLOBAL=7330066378690.048.1625663522444; ULV=1625663522450:1:1:1:7330066378690.048.1625663522444:; TC-V-WEIBO-G0=35846f552801987f8c1e8f7cec0e2230; SUB=_2AkMXuScYf8NxqwJRmf8RzmnhaoxwzwDEieKh5dbDJRMxHRl-yT9jqhALtRB6PDkJ9w8OaqJAbsgjdEWtIcilcZxHG7rw; SUBP=0033WrSXqPxfM72-Ws9jqgMF55529P9D9W5Qx3Mf.RCfFAKC3smW0px0; XSRF-TOKEN=JQSK02Ijtm4Fri-YIRu0-vNj"
+  );
+}
+
+async function weiboCurl(id, cookie) {
   const postData = `data={"Component_Play_Playinfo":{"oid":"${id}"}}`;
   try {
     const resp = await fetch("https://weibo.com/tv/api/component?page=/tv/show/" + id, {
@@ -74,18 +81,18 @@ async function weiboCurl(id) {
 }
 
 // 对应 PHP weibo()
-async function weibo(url) {
+async function weibo(url, cookie) {
   const proxyurl = "https://api.bugpk.com/api/weibo?proxyurl=";
   let arr = null;
   // PHP: strpos($url, 'show?fid=') != false —— 命中且位置大于 0
   if (url.indexOf("show?fid=") > 0) {
     const m = /fid=(.*)/.exec(url);
     const id = m ? m[1] : "";
-    arr = jsonDecode(await weiboCurl(id));
+    arr = jsonDecode(await weiboCurl(id, cookie));
   } else {
     const m = /\d+\:\d+/.exec(url);
     const id = m ? m[0] : "";
-    arr = jsonDecode(await weiboCurl(id));
+    arr = jsonDecode(await weiboCurl(id, cookie));
   }
   if (arr !== null && typeof arr === "object") {
     const playInfo =
@@ -118,12 +125,13 @@ async function weibo(url) {
   return null;
 }
 
-export async function parse(shareUrl, env) {
+// 登录态可选：opts.weiboCookie > 环境变量 WEIBO_COOKIE > 原 PHP 硬编码兜底
+export async function parse(shareUrl, env, opts = {}) {
   const url = shareUrl === undefined || shareUrl === null ? "" : String(shareUrl);
   if (phpEmpty(url)) {
     return { code: 201, msg: "链接不能为空！" };
   }
-  const info = await weibo(url);
+  const info = await weibo(url, resolveWeiboCookie(opts, env));
   // 检查 $info 是否为数组
   if (info !== null && typeof info === "object" && info.code == 200) {
     return info;

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>短视频去水印解析接口</title>
+<title>短视频去水印解析</title>
 <link rel="icon" href="/img/icon.png">
 <style>
   :root {
@@ -13,121 +13,496 @@
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; }
-  .container { max-width: 920px; margin: 0 auto; padding: 24px 16px 48px; }
-  header { padding: 28px 0 8px; }
-  h1 { font-size: 24px; }
-  .subtitle { color: var(--muted); font-size: 14px; margin-top: 4px; }
-  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; margin-top: 20px; }
-  h2 { font-size: 17px; margin-bottom: 12px; }
-  .test-box textarea { width: 100%; height: 80px; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 14px; resize: vertical; font-family: inherit; }
-  .test-box button { margin-top: 10px; background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 9px 26px; font-size: 15px; cursor: pointer; }
+  .container { max-width: 960px; margin: 0 auto; padding: 32px 16px 64px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-top: 24px; }
+  .card:first-child { margin-top: 0; }
+  h2 { font-size: 19px; margin-bottom: 14px; }
+  .test-box textarea { width: 100%; height: 88px; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 14px; resize: vertical; font-family: inherit; }
+  .test-box button { margin-top: 12px; background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 10px 28px; font-size: 15px; cursor: pointer; }
   .test-box button:disabled { opacity: .6; cursor: wait; }
-  pre { background: #f6f8fa; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-size: 12.5px; overflow: auto; max-height: 380px; white-space: pre-wrap; word-break: break-all; }
-  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-  th, td { border-bottom: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
+  pre { background: #f6f8fa; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-size: 12.5px; overflow: auto; max-height: 420px; white-space: pre-wrap; word-break: break-all; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { border-bottom: 1px solid var(--border); padding: 9px 10px; text-align: left; vertical-align: top; }
   th { color: var(--muted); font-weight: 600; white-space: nowrap; }
-  td code, p code { background: var(--accent-soft); color: var(--accent); border-radius: 4px; padding: 1px 6px; font-size: 12.5px; font-family: Consolas, Menlo, monospace; }
+  td code, p code, li code { background: var(--accent-soft); color: var(--accent); border-radius: 4px; padding: 1px 6px; font-size: 13px; font-family: Consolas, Menlo, monospace; }
   .status-ok { color: var(--ok); font-weight: 600; }
-  .note { color: var(--muted); font-size: 12.5px; margin-top: 10px; }
+  .cookie-need { color: var(--warn); font-size: 12px; }
+  .note { color: var(--muted); font-size: 13px; margin-top: 10px; }
+  footer { text-align: center; color: var(--muted); font-size: 13px; margin-top: 40px; }
   a { color: var(--accent); text-decoration: none; }
-  /* 登录区块 */
-  .login-box h2 { margin-bottom: 10px; }
-  .login-hint { font-size: 13px; color: var(--muted); font-weight: normal; }
-  .login-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-  .plat-name { font-weight: 600; min-width: 72px; }
-  .login-status { font-size: 13px; color: var(--muted); min-width: 90px; }
-  .login-status.ok { color: var(--ok); }
-  .login-row button { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 6px 16px; font-size: 13px; cursor: pointer; }
-  .login-row button:disabled { opacity: .6; cursor: wait; }
+  /* 登录栏 */
+  .login-bar { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--border); align-items: center; }
+  .chip { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px; font-size: 13px; background: #fff; }
+  .chip .st { color: var(--muted); }
+  .chip.on .st { color: var(--ok); font-weight: 600; }
+  .chip button { border: none; border-radius: 999px; padding: 3px 12px; font-size: 12px; cursor: pointer; background: var(--accent-soft); color: var(--accent); }
+  .chip button.out { background: #f1f3f5; color: var(--warn); display: none; }
+  .chip.on button.login { display: none; }
+  .chip.on button.out { display: inline-block; }
+  /* 弹窗 */
+  .modal-mask { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 100; align-items: center; justify-content: center; padding: 16px; }
+  .modal-mask.show { display: flex; }
+  .modal { background: var(--card); border-radius: 12px; max-width: 400px; width: 100%; max-height: 86vh; overflow: auto; padding: 22px; }
+  .modal h3 { font-size: 17px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+  .modal h3 .close { cursor: pointer; color: var(--muted); font-size: 20px; font-weight: normal; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .tabs button { flex: 1; border: 1px solid var(--border); background: #fff; border-radius: 8px; padding: 7px 0; font-size: 13px; cursor: pointer; }
+  .tabs button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .modal .field { margin: 8px 0; }
+  .modal .field input { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 14px; }
+  .modal .btn { width: 100%; margin-top: 10px; background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 9px 0; font-size: 14px; cursor: pointer; }
+  .modal .btn:disabled { opacity: .6; cursor: wait; }
+  .qr-wrap { text-align: center; padding: 6px 0; }
+  .qr-wrap img { width: 190px; height: 190px; border: 1px solid var(--border); border-radius: 8px; }
+  .login-tip { font-size: 13px; color: var(--muted); text-align: center; margin-top: 8px; min-height: 20px; }
 </style>
 </head>
 <body>
 <div class="container">
-  <header>
-    <h1>短视频去水印解析接口</h1>
-    <p class="subtitle">多平台短视频解析 · 无水印直链 · 部署于 EdgeOne Makers</p>
-  </header>
-
-  <div class="card login-box">
-    <h2>账号登录 <span class="login-hint">（可选 · 登录后部分平台可获取更高清晰度）</span></h2>
-    <div class="login-row">
-      <span class="plat-name">哔哩哔哩</span>
-      <span id="bili-status" class="login-status">未登录</span>
-      <button id="bili-login-btn" onclick="biliLogin()">扫码登录</button>
-      <button id="bili-logout-btn" onclick="biliLogout()" style="display:none;">退出</button>
-    </div>
-    <div id="bili-qr-area" style="display:none;margin-top:14px;">
-      <img id="bili-qr-img" alt="扫码登录二维码" style="width:180px;height:180px;border:1px solid var(--border);border-radius:8px;">
-      <p id="bili-qr-tip" class="note">请用哔哩哔哩 App 扫码登录</p>
-    </div>
-
-    <div class="login-row" style="margin-top:14px;">
-      <span class="plat-name">微博</span>
-      <span id="weibo-status" class="login-status">未登录</span>
-      <input id="weibo-cookie-input" type="password" placeholder="粘贴微博 Cookie（含 SUB）" style="flex:1;min-width:200px;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;">
-      <button id="weibo-save-btn" onclick="weiboSave()">保存</button>
-      <button id="weibo-logout-btn" onclick="weiboLogout()" style="display:none;">退出</button>
-    </div>
-    <p class="note" style="margin-top:8px;">微博登录方式：在浏览器登录 <a href="https://m.weibo.cn" target="_blank">m.weibo.cn</a> 后，按 F12 → 应用/Application → Cookies，复制整段 Cookie（或至少含 <code>SUB=</code> 那条）粘贴到上面保存。微博扫码接口反爬较严，暂用 Cookie 粘贴方式。</p>
-
-    <div class="login-row" style="margin-top:14px;">
-      <span class="plat-name">网易云音乐</span>
-      <span id="wyy-status" class="login-status">未登录</span>
-      <button id="wyy-login-btn" onclick="wyyLogin()">扫码登录</button>
-      <button id="wyy-logout-btn" onclick="wyyLogout()" style="display:none;">退出</button>
-    </div>
-    <div id="wyy-qr-area" style="display:none;margin-top:14px;">
-      <img id="wyy-qr-img" alt="扫码登录二维码" style="width:180px;height:180px;border:1px solid var(--border);border-radius:8px;">
-      <p id="wyy-qr-tip" class="note">请用网易云音乐 App 扫码登录</p>
-    </div>
-  </div>
-
+  <!-- 板块 1：在线测试 -->
   <div class="card test-box">
-    <h2>在线测试</h2>
+    <h2>🚀 在线测试（聚合入口 /api/sv）</h2>
     <textarea id="input" placeholder="粘贴任意含分享链接的文本，例如：
 7.05 Kfx:/ 复制打开抖音，看看... https://v.douyin.com/xxxx/"></textarea>
     <button id="btn" onclick="doParse()">解析</button>
     <div id="result" style="margin-top:14px;display:none;"><pre id="output"></pre></div>
-    <p class="note">粘贴链接后自动识别平台（抖音/快手/小红书/哔哩哔哩/微博/今日头条/皮皮虾/皮皮搞笑/最右等），走聚合入口 /api/sv。</p>
+    <div class="login-bar">
+      <span style="font-size:13px;color:var(--muted);">登录态（可选，Cookie 仅存于你的浏览器）：</span>
+      <span class="chip" id="chip-bili">B站 <span class="st">未登录</span>
+        <button class="login" onclick="openLogin('bili')">登录</button>
+        <button class="out" onclick="logout('bili')">退出</button>
+      </span>
+      <span class="chip" id="chip-weibo">微博 <span class="st">未登录</span>
+        <button class="login" onclick="openLogin('weibo')">登录</button>
+        <button class="out" onclick="logout('weibo')">退出</button>
+      </span>
+      <span class="chip" id="chip-wyy">网易云 <span class="st">未登录</span>
+        <button class="login" onclick="openLogin('wyy')">登录</button>
+        <button class="out" onclick="logout('wyy')">退出</button>
+      </span>
+    </div>
+    <p class="note">支持抖音 / 快手 / 小红书 / 哔哩哔哩 / 微博 / 今日头条 / 皮皮虾 / 皮皮搞笑 / 最右 / 网易云 / 豆包 / 即梦，自动识别平台。已登录的平台解析时自动携带 Cookie，未登录或 Cookie 失效自动使用免登录版本。</p>
   </div>
 
+  <!-- 板块 2：支持平台与接口 -->
   <div class="card">
-    <h2>支持平台与接口</h2>
+    <h2>📋 支持平台与接口</h2>
     <table>
-      <tr><th>平台</th><th>接口</th><th>登录</th><th>状态</th></tr>
-      <tr><td>抖音（视频/图集/实况）</td><td><code>/api/douyin?url=</code></td><td>免登录</td><td class="status-ok">✅</td></tr>
-      <tr><td>抖音主页批量</td><td><code>/api/douyin/home?url=</code></td><td>需 DOUYIN_HOME_COOKIE</td><td class="status-ok">✅</td></tr>
-      <tr><td>快手</td><td><code>/api/kuaishou?url=</code></td><td>免登录</td><td class="status-ok">✅</td></tr>
-      <tr><td>小红书</td><td><code>/api/xiaohongshu?url=</code></td><td>免登录</td><td class="status-ok">✅</td></tr>
-      <tr><td>哔哩哔哩</td><td><code>/api/bilibili?url=</code></td><td>免登录（可选 cookie 提清晰度）</td><td class="status-ok">✅</td></tr>
-      <tr><td>微博（接口版）</td><td><code>/api/weibo?url=</code></td><td>建议登录</td><td class="status-ok">✅</td></tr>
-      <tr><td>微博（爬虫版）</td><td><code>/api/weibo_v?url=</code></td><td>免登录</td><td class="status-ok">✅</td></tr>
-      <tr><td>今日头条</td><td><code>/api/toutiao?url=</code></td><td>免登录</td><td class="status-ok">✅</td></tr>
-      <tr><td>皮皮搞笑</td><td><code>/api/pipigx?url=</code></td><td>免登录</td><td class="status-ok">✅</td></tr>
-      <tr><td>皮皮虾</td><td><code>/api/ppxia?url=</code></td><td>免登录</td><td class="status-ok">✅</td></tr>
-      <tr><td>最右</td><td><code>/api/zuiyou?url=</code></td><td>免登录</td><td class="status-ok">✅</td></tr>
-      <tr><td>网易云音乐</td><td><code>/api/wyy?url=&level=&type=</code></td><td>建议登录</td><td class="status-ok">✅</td></tr>
-      <tr><td>豆包 AI 视频</td><td><code>/api/doubao/video?url=</code></td><td>免登录</td><td class="status-ok">✅</td></tr>
-      <tr><td>豆包 对话分享</td><td><code>/api/doubao/duihua?url=</code></td><td>免登录</td><td class="status-ok">✅</td></tr>
-      <tr><td>即梦 AI 视频</td><td><code>/api/jimengai?url=</code></td><td>免登录</td><td class="status-ok">✅</td></tr>
-      <tr><td>聚合解析</td><td><code>/api/sv?url=</code></td><td>免登录</td><td class="status-ok">✅</td></tr>
-      <tr><td>媒体防盗链代理</td><td><code>/api/proxy?proxyurl=</code></td><td>—</td><td class="status-ok">✅</td></tr>
+      <tr><th>平台</th><th>接口</th><th>功能</th><th>登录</th><th>状态</th></tr>
+      <tr><td>抖音 视频/图集/实况</td><td><code>/api/douyin?url=</code></td><td>原画直链、图集原图、实况 Live Photo、背景音乐、多档备选直链</td><td>免登录</td><td class="status-ok">✅</td></tr>
+      <tr><td>抖音主页 批量解析</td><td><code>/api/douyin/home?url=</code></td><td>主页作品批量列表（feed 接口）</td><td class="cookie-need">需环境变量 DOUYIN_HOME_COOKIE</td><td class="status-ok">✅</td></tr>
+      <tr><td>快手</td><td><code>/api/kuaishou?url=</code></td><td>视频/图片直链、封面、作者信息</td><td>免登录</td><td class="status-ok">✅</td></tr>
+      <tr><td>小红书</td><td><code>/api/xiaohongshu?url=</code></td><td>视频去水印、图集原图、实况</td><td>免登录</td><td class="status-ok">✅</td></tr>
+      <tr><td>哔哩哔哩</td><td><code>/api/bilibili?url=</code></td><td>视频直链、分P 列表、时长、封面（<code>&ver=old</code> 走旧版）</td><td class="cookie-need">免登录可用，登录后画质更高</td><td class="status-ok">✅</td></tr>
+      <tr><td>微博（接口版）</td><td><code>/api/weibo?url=</code></td><td>多画质、备选直链、互动数据、封面</td><td class="cookie-need">免登录可用，登录后更稳</td><td class="status-ok">✅</td></tr>
+      <tr><td>微博（爬虫版）</td><td><code>/api/weibo_v?url=</code></td><td>视频直链、封面</td><td>同上</td><td class="status-ok">✅</td></tr>
+      <tr><td>今日头条</td><td><code>/api/toutiao?url=</code></td><td>视频去水印、背景音乐、封面</td><td>免登录</td><td class="status-ok">✅</td></tr>
+      <tr><td>皮皮搞笑</td><td><code>/api/pipigx?url=</code></td><td>视频去水印、封面</td><td>免登录</td><td class="status-ok">✅</td></tr>
+      <tr><td>皮皮虾</td><td><code>/api/ppxia?url=</code></td><td>视频去水印、图集图片、封面、作者</td><td>免登录</td><td class="status-ok">✅</td></tr>
+      <tr><td>最右</td><td><code>/api/zuiyou?url=</code></td><td>视频去水印、封面、作者信息</td><td>免登录</td><td class="status-ok">✅</td></tr>
+      <tr><td>网易云音乐</td><td><code>/api/wyy?url=&level=&type=json</code></td><td>歌曲直链 + 歌词（原 Python 版移植）</td><td class="cookie-need">免登录可用，登录后部分歌曲可解析</td><td class="status-ok">✅</td></tr>
+      <tr><td>豆包 AI 视频</td><td><code>/api/doubao/video?url=</code></td><td>AI 生成视频无水印直链</td><td>免登录</td><td class="status-ok">✅</td></tr>
+      <tr><td>豆包 对话分享</td><td><code>/api/doubao/duihua?url=</code></td><td>对话分享图片/视频直链</td><td>免登录</td><td class="status-ok">✅</td></tr>
+      <tr><td>即梦 AI 视频</td><td><code>/api/jimengai?url=</code></td><td>AI 生成视频无水印直链</td><td>免登录</td><td class="status-ok">✅</td></tr>
+      <tr><td>聚合解析</td><td><code>/api/sv?url=</code></td><td>自动识别平台，转发到对应解析器</td><td>免登录</td><td class="status-ok">✅</td></tr>
+      <tr><td>B站 登录</td><td><code>/api/bilibili/login/qr</code> · <code>/captcha</code> · <code>/password</code> · <code>/sms/send</code> · <code>/sms/confirm</code></td><td>扫码 / 账号密码 / 短信登录（geetest 滑块由用户手动完成）</td><td>—</td><td class="status-ok">✅</td></tr>
+      <tr><td>微博 登录</td><td><code>/api/weibo/login/qr</code> · <code>/api/weibo/login/poll?qrid=</code> · <code>/api/weibo/login/password</code></td><td>扫码 / 账号密码登录，换取 SUB/SUBP Cookie</td><td>—</td><td class="status-ok">✅</td></tr>
+      <tr><td>网易云 登录</td><td><code>/api/wyy/login/qr</code> · <code>/poll?key=</code> · <code>/password</code> · <code>/sms/send</code> · <code>/sms/confirm</code></td><td>扫码 / 手机号密码 / 短信验证码登录，换取 MUSIC_U Cookie</td><td>—</td><td class="status-ok">✅</td></tr>
+      <tr><td>媒体防盗链代理</td><td><code>/api/proxy?proxyurl=</code></td><td>解决抖音/微博直链 403，支持下载</td><td>—</td><td class="status-ok">✅</td></tr>
     </table>
-    <p class="note">所有接口返回统一 JSON <code>{code, msg, data}</code>，支持 GET / POST，开放 CORS。</p>
+    <p class="note">所有解析接口返回统一 JSON 结构 <code>{code, msg, data}</code>；Cookie 通过请求头 <code>x-bili-cookie</code> / <code>x-weibo-cookie</code> / <code>x-wyy-cookie</code>（或 <code>?cookie=</code> 等参数）携带；也可在服务端配置环境变量 <code>BILI_COOKIE</code> / <code>WEIBO_COOKIE</code> / <code>WYY_COOKIE</code> 作为兜底。</p>
   </div>
 
+  <!-- 板块 3：使用示例 -->
   <div class="card">
-    <h2>使用示例</h2>
+    <h2>📖 使用示例</h2>
     <pre>GET /api/sv?url=https://v.douyin.com/xxxx/
 GET /api/douyin?url=（整段分享文本均可，自动提取链接）
-GET /api/bilibili?url=https://b23.tv/xxxx
-GET /api/proxy?proxyurl=（直链 403 时代理转发；支持 type=douyin|weibo、download=true）</pre>
+GET /api/bilibili?url=https://b23.tv/xxxx&ver=old
+GET /api/wyy?url=https://music.163.com/#/song?id=347230&level=exhigh&type=json
+GET /api/proxy?proxyurl=（视频直链，403 时用于代理转发；支持 type=douyin|weibo、download=true）</pre>
+    <p class="note">接口均支持 GET / POST（form 或 JSON body 中的 url 字段），并开放 CORS，可直接在前端调用。</p>
+  </div>
+
+  <footer>
+    <p>本工具仅用于学习交流与技术测试，素材版权归原平台及权利人所有，不得用于任何非法用途。</p>
+    <p>基于开源项目 <a href="https://github.com/jiuhunwl/short_videos" target="_blank">short_videos</a> 改造 · MIT License · 部署于 Tencent EdgeOne Makers</p>
+  </footer>
+</div>
+
+<!-- 登录弹窗 -->
+<div class="modal-mask" id="modalMask">
+  <div class="modal">
+    <h3><span id="modalTitle">登录</span><span class="close" onclick="closeLogin()">×</span></h3>
+    <div id="platformTabs" class="tabs" style="display:none;"></div>
+    <div id="modalBody"></div>
+    <p class="login-tip" id="loginTip"></p>
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="/js/qrcode.min.js"></script>
 <script>
-// ===== 在线测试 =====
+/* ==================== 登录态管理 ==================== */
+const LS_KEYS = { bili: 'bili_cookie', weibo: 'weibo_cookie', wyy: 'wyy_cookie' };
+const LS_UIDS = { bili: 'bili_uid', weibo: 'weibo_uid', wyy: 'wyy_uid' };
+let loginTimer = null, pollToken = 0;
+
+function getCookie(platform) { return localStorage.getItem(LS_KEYS[platform]) || ''; }
+function setCookie(platform, value, uid) {
+  localStorage.setItem(LS_KEYS[platform], value);
+  if (uid && LS_UIDS[platform]) localStorage.setItem(LS_UIDS[platform], uid);
+}
+function refreshChips() {
+  for (const p of ['bili', 'weibo', 'wyy']) {
+    const chip = document.getElementById('chip-' + p);
+    const on = !!getCookie(p);
+    chip.classList.toggle('on', on);
+    const st = chip.querySelector('.st');
+    if (on) {
+      const uid = LS_UIDS[p] ? localStorage.getItem(LS_UIDS[p]) : '';
+      st.textContent = '已登录' + (uid ? ' · ' + uid : '');
+    } else { st.textContent = '未登录'; }
+  }
+}
+function logout(platform) {
+  localStorage.removeItem(LS_KEYS[platform]);
+  if (LS_UIDS[platform]) localStorage.removeItem(LS_UIDS[platform]);
+  refreshChips();
+}
+function loginSuccess(platform, cookie, uid, nickname) {
+  setCookie(platform, cookie, uid || nickname || '');
+  refreshChips();
+  showTip('🎉 登录成功！');
+  setTimeout(closeLogin, 800);
+}
+
+/* ==================== 登录弹窗（通用 Tab 结构） ==================== */
+const PLATFORM_NAMES = { bili: 'B站', weibo: '微博', wyy: '网易云音乐' };
+const PLATFORM_TABS = {
+  bili: [['qr', '扫码登录'], ['pwd', '密码登录'], ['sms', '短信登录']],
+  weibo: [['qr', '扫码登录'], ['pwd', '密码登录']],
+  wyy: [['qr', '扫码登录'], ['pwd', '密码登录'], ['sms', '短信登录']],
+};
+let currentPlatform = '', currentTab = '';
+let smsToken = '';
+
+function openLogin(platform) {
+  currentPlatform = platform; currentTab = '';
+  clearInterval(loginTimer); pollToken++;
+  document.getElementById('modalTitle').textContent = PLATFORM_NAMES[platform] + '登录';
+  document.getElementById('loginTip').textContent = '';
+  const tabsEl = document.getElementById('platformTabs');
+  tabsEl.style.display = 'flex';
+  tabsEl.innerHTML = PLATFORM_TABS[platform].map(function (t) {
+    return '<button id="ptab-' + t[0] + '" onclick="switchTab(\'' + t[0] + '\')">' + t[1] + '</button>';
+  }).join('');
+  document.getElementById('modalMask').classList.add('show');
+  switchTab(PLATFORM_TABS[platform][0][0]);
+}
+function closeLogin() {
+  clearInterval(loginTimer); pollToken++;
+  document.getElementById('modalMask').classList.remove('show');
+}
+function showTip(t) { document.getElementById('loginTip').textContent = t; }
+function qrImgOf(url) {
+  const qr = window.qrcode(0, 'M');
+  qr.addData(url); qr.make();
+  return qr.createDataURL(6, 0);
+}
+
+function switchTab(tab) {
+  clearInterval(loginTimer); pollToken++;
+  currentTab = tab;
+  PLATFORM_TABS[currentPlatform].forEach(function (t) {
+    const el = document.getElementById('ptab-' + t[0]);
+    if (el) el.classList.toggle('active', t[0] === tab);
+  });
+  if (tab === 'qr') { startQrLogin(currentPlatform); }
+  else if (tab === 'pwd') { renderPwdForm(currentPlatform); }
+  else { renderSmsForm(currentPlatform); }
+}
+
+/* ---- 扫码登录（B站 / 微博 / 网易云，各自轮询协议不同） ---- */
+async function startQrLogin(platform) {
+  const body = document.getElementById('modalBody');
+  body.innerHTML = '<div class="qr-wrap"><img id="qrImg" alt="二维码"></div>';
+  showTip('正在生成二维码…');
+  const myToken = ++pollToken;
+  try {
+    const conf = { bili: '/api/bilibili/login/qr', weibo: '/api/weibo/login/qr', wyy: '/api/wyy/login/qr' }[platform];
+    const g = await (await fetch(conf)).json();
+    if (g.code !== 0) { showTip('生成失败：' + g.msg); return; }
+    if (myToken !== pollToken) return; // 弹窗已切换
+    const qrUrl = g.data.qr_url || g.data.scan_url;
+    document.getElementById('qrImg').src = qrImgOf(qrUrl);
+    showTip('请使用' + PLATFORM_NAMES[platform] + ' App 扫码并确认登录…');
+    const keyName = platform === 'weibo' ? 'qrid' : platform === 'wyy' ? 'key' : 'qrcode_key';
+    const pollUrl = { bili: '/api/bilibili/login/poll', weibo: '/api/weibo/login/poll', wyy: '/api/wyy/login/poll' }[platform];
+    clearInterval(loginTimer);
+    loginTimer = setInterval(async () => {
+      try {
+        const r = await (await fetch(pollUrl + '?' + keyName + '=' + encodeURIComponent(g.data[keyName]))).json();
+        if (myToken !== pollToken) { clearInterval(loginTimer); return; }
+        if (r.code !== 0) { showTip('轮询失败：' + r.msg); clearInterval(loginTimer); return; }
+        const s = r.data.status;
+        if (s === 'waiting') { /* 继续等待 */ }
+        else if (s === 'scanned') { showTip('✅ 已扫码，请在手机上确认登录'); }
+        else if (s === 'expired') { showTip('二维码已过期，请关闭后重新登录'); clearInterval(loginTimer); }
+        else if (s === 'confirmed') {
+          clearInterval(loginTimer);
+          loginSuccess(platform, r.data.cookie, r.data.uid || '', r.data.nickname || '');
+        }
+      } catch (e) { /* 网络抖动，继续轮询 */ }
+    }, 2000);
+  } catch (e) { showTip('请求失败：' + e.message); }
+}
+
+/* ---- 密码登录（三平台，各自提交端点不同） ---- */
+function renderPwdForm(platform) {
+  const body = document.getElementById('modalBody');
+  if (platform === 'bili') {
+    body.innerHTML =
+      '<div class="field"><input id="biliUser" placeholder="手机号 / 邮箱 / 用户名"></div>' +
+      '<div class="field"><input id="biliPass" type="password" placeholder="密码"></div>' +
+      '<button class="btn" id="pwdBtn" onclick="biliPwdLogin()">登录</button>' +
+      '<p class="note">如触发风控，将弹出B站滑块验证，请手动完成挑战。</p>';
+  } else if (platform === 'weibo') {
+    body.innerHTML =
+      '<div class="field"><input id="wbUser" placeholder="手机号 / 邮箱 / 用户名"></div>' +
+      '<div class="field"><input id="wbPass" type="password" placeholder="密码"></div>' +
+      '<button class="btn" id="wbPwdBtn" onclick="weiboPwdLogin()">登录</button>' +
+      '<p class="note">密码经 RSA 加密后提交；如账号异常，微博可能拒绝本次登录。</p>';
+  } else {
+    body.innerHTML =
+      '<div class="field"><input id="wyyUser" placeholder="手机号（默认 +86）或网易邮箱"></div>' +
+      '<div class="field"><input id="wyyPass" type="password" placeholder="密码"></div>' +
+      '<button class="btn" id="wyyPwdBtn" onclick="wyyPwdLogin()">登录</button>' +
+      '<p class="note">密码仅以 MD5 摘要形式参与加密请求。</p>';
+  }
+  showTip('');
+}
+
+async function weiboPwdLogin() {
+  const username = document.getElementById('wbUser').value.trim();
+  const password = document.getElementById('wbPass').value;
+  if (!username || !password) { showTip('请输入账号和密码'); return; }
+  const btn = document.getElementById('wbPwdBtn');
+  btn.disabled = true; showTip('正在登录…');
+  try {
+    const r = await (await fetch('/api/weibo/login/password', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: username, password: password }),
+    })).json();
+    if (r.code === 0) {
+      loginSuccess('weibo', r.data.cookie, r.data.uid, r.data.nickname);
+    } else { showTip(r.msg); }
+  } catch (e) { showTip('登录失败：' + e.message); }
+  btn.disabled = false;
+}
+
+async function wyyPwdLogin() {
+  const account = document.getElementById('wyyUser').value.trim();
+  const password = document.getElementById('wyyPass').value;
+  if (!account || !password) { showTip('请输入账号和密码'); return; }
+  const btn = document.getElementById('wyyPwdBtn');
+  btn.disabled = true; showTip('正在登录…');
+  try {
+    const payload = account.indexOf('@') !== -1
+      ? { email: account, password: password }
+      : { phone: account, countrycode: '86', password: password };
+    const r = await (await fetch('/api/wyy/login/password', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })).json();
+    if (r.code === 0) {
+      loginSuccess('wyy', r.data.cookie, r.data.uid, r.data.nickname);
+    } else { showTip(r.msg); }
+  } catch (e) { showTip('登录失败：' + e.message); }
+  btn.disabled = false;
+}
+
+/* ---- 短信登录（B站 geetest 流程 / 网易云验证码流程） ---- */
+function renderSmsForm(platform) {
+  const body = document.getElementById('modalBody');
+  if (platform === 'bili') {
+    body.innerHTML =
+      '<div class="field"><input id="smsPhone" placeholder="手机号（默认 +86）"></div>' +
+      '<button class="btn" id="smsSendBtn" onclick="biliSmsSend()">发送短信验证码</button>' +
+      '<div class="field" id="smsCodeField" style="display:none;"><input id="smsCode" placeholder="6 位短信验证码"></div>' +
+      '<button class="btn" id="smsConfirmBtn" style="display:none;" onclick="biliSmsConfirm()">登录</button>' +
+      '<p class="note">如触发风控，将弹出B站滑块验证，请手动完成挑战。</p>';
+  } else {
+    body.innerHTML =
+      '<div class="field"><input id="wyySmsPhone" placeholder="手机号（默认 +86）"></div>' +
+      '<button class="btn" id="wyySmsSendBtn" onclick="wyySmsSend()">发送短信验证码</button>' +
+      '<div class="field" id="wyySmsCodeField" style="display:none;"><input id="wyySmsCode" placeholder="短信验证码"></div>' +
+      '<button class="btn" id="wyySmsConfirmBtn" style="display:none;" onclick="wyySmsConfirm()">登录</button>' +
+      '<p class="note">验证码发送次数受网易限制，请勿频繁请求。</p>';
+  }
+  showTip('');
+}
+
+/* ---- geetest 手动挑战（用户自行完成滑块） ---- */
+function loadGtJs() {
+  return new Promise(function (resolve, reject) {
+    if (window.initGeetest) { resolve(); return; }
+    const s = document.createElement('script');
+    s.src = 'https://static.geetest.com/static/tools/gt.js';
+    s.onload = resolve;
+    s.onerror = function () { reject(new Error('geetest 脚本加载失败')); };
+    document.head.appendChild(s);
+  });
+}
+
+// 获取验证码参数并弹出滑块，用户手动完成后回调 {token, challenge, validate, seccode}
+function challengeGeetest() {
+  return new Promise(async function (resolve, reject) {
+    try {
+      showTip('正在获取验证码…');
+      const c = await (await fetch('/api/bilibili/login/captcha')).json();
+      if (c.code !== 0) { reject(new Error(c.msg)); return; }
+      if (c.data.type !== 'geetest' || !c.data.gt) {
+        // 无需验证码
+        resolve({ token: c.data.token || '', challenge: '', validate: '', seccode: '' });
+        return;
+      }
+      await loadGtJs();
+      showTip('请在弹出的滑块中手动完成验证');
+      window.initGeetest({
+        gt: c.data.gt,
+        challenge: c.data.challenge,
+        new_captcha: true,
+        product: 'bind',
+        offline: false,
+      }, function (captchaObj) {
+        captchaObj.onReady(function () { captchaObj.verify(); });
+        captchaObj.onSuccess(function () {
+          const result = captchaObj.getValidate();
+          resolve({
+            token: c.data.token || '',
+            challenge: result.geetest_challenge,
+            validate: result.geetest_validate,
+            seccode: result.geetest_seccode,
+          });
+        });
+        captchaObj.onError(function () { reject(new Error('验证失败，请重试')); });
+      });
+    } catch (e) { reject(e); }
+  });
+}
+
+async function biliPwdLogin() {
+  const username = document.getElementById('biliUser').value.trim();
+  const password = document.getElementById('biliPass').value;
+  if (!username || !password) { showTip('请输入账号和密码'); return; }
+  const btn = document.getElementById('pwdBtn');
+  btn.disabled = true;
+  try {
+    const cap = await challengeGeetest();
+    showTip('正在登录…');
+    const r = await (await fetch('/api/bilibili/login/password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ username: username, password: password }, cap)),
+    })).json();
+    if (r.code === 0 && r.data.status === 'confirmed') {
+      loginSuccess('bili', r.data.cookie, r.data.uid, '');
+    } else {
+      showTip(r.msg + (r.data && r.data.need_captcha ? '（请重试并完成滑块验证）' : ''));
+    }
+  } catch (e) { showTip('登录失败：' + e.message); }
+  btn.disabled = false;
+}
+
+async function biliSmsSend() {
+  const tel = document.getElementById('smsPhone').value.trim();
+  if (!tel) { showTip('请输入手机号'); return; }
+  const btn = document.getElementById('smsSendBtn');
+  btn.disabled = true; btn.textContent = '发送中…';
+  try {
+    const cap = await challengeGeetest();
+    const r = await (await fetch('/api/bilibili/login/sms/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ cid: '86', tel: tel }, cap)),
+    })).json();
+    if (r.code === 0) {
+      smsToken = r.data.grecaptcha_token || '';
+      document.getElementById('smsCodeField').style.display = 'block';
+      document.getElementById('smsConfirmBtn').style.display = 'block';
+      showTip('✅ 验证码已发送，请查收短信');
+    } else {
+      showTip(r.msg);
+    }
+  } catch (e) { showTip('发送失败：' + e.message); }
+  btn.disabled = false; btn.textContent = '发送短信验证码';
+}
+
+async function biliSmsConfirm() {
+  const tel = document.getElementById('smsPhone').value.trim();
+  const code = document.getElementById('smsCode').value.trim();
+  if (!code) { showTip('请输入短信验证码'); return; }
+  const btn = document.getElementById('smsConfirmBtn');
+  btn.disabled = true;
+  try {
+    const r = await (await fetch('/api/bilibili/login/sms/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cid: '86', tel: tel, code: code, grecaptcha_token: smsToken }),
+    })).json();
+    if (r.code === 0 && r.data.status === 'confirmed') {
+      loginSuccess('bili', r.data.cookie, r.data.uid, '');
+    } else {
+      showTip(r.msg);
+    }
+  } catch (e) { showTip('登录失败：' + e.message); }
+  btn.disabled = false;
+}
+
+async function wyySmsSend() {
+  const tel = document.getElementById('wyySmsPhone').value.trim();
+  if (!tel) { showTip('请输入手机号'); return; }
+  const btn = document.getElementById('wyySmsSendBtn');
+  btn.disabled = true; btn.textContent = '发送中…';
+  try {
+    const r = await (await fetch('/api/wyy/login/sms/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: tel, ctcode: '86' }),
+    })).json();
+    if (r.code === 0) {
+      document.getElementById('wyySmsCodeField').style.display = 'block';
+      document.getElementById('wyySmsConfirmBtn').style.display = 'block';
+      showTip('✅ 验证码已发送，请查收短信');
+    } else {
+      showTip(r.msg);
+    }
+  } catch (e) { showTip('发送失败：' + e.message); }
+  btn.disabled = false; btn.textContent = '发送短信验证码';
+}
+
+async function wyySmsConfirm() {
+  const tel = document.getElementById('wyySmsPhone').value.trim();
+  const code = document.getElementById('wyySmsCode').value.trim();
+  if (!code) { showTip('请输入短信验证码'); return; }
+  const btn = document.getElementById('wyySmsConfirmBtn');
+  btn.disabled = true; showTip('正在登录…');
+  try {
+    const r = await (await fetch('/api/wyy/login/sms/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: tel, captcha: code, ctcode: '86' }),
+    })).json();
+    if (r.code === 0) {
+      loginSuccess('wyy', r.data.cookie, r.data.uid, r.data.nickname);
+    } else {
+      showTip(r.msg);
+    }
+  } catch (e) { showTip('登录失败：' + e.message); }
+  btn.disabled = false;
+}
+
+/* ==================== 在线解析 ==================== */
 async function doParse() {
   const input = document.getElementById('input').value.trim();
   const btn = document.getElementById('btn');
@@ -138,23 +513,11 @@ async function doParse() {
   box.style.display = 'block';
   out.textContent = '正在请求边缘函数...';
   try {
-    let url;
-    // B站链接且已登录：直接走 bilibili 接口并带上 cookie（可拿更高清晰度）
-    if (/bilibili\.com|b23\.tv/i.test(input)) {
-      const ck = localStorage.getItem('bili_cookie');
-      url = '/api/bilibili?url=' + encodeURIComponent(input) + (ck ? '&cookie=' + encodeURIComponent(ck) : '');
-    } else if (/weibo\.com|weibo\.cn/i.test(input)) {
-      // 微博链接：已存 cookie 则带 cookie 走 weibo 接口（可绕过访客墙出数据）
-      const wk = localStorage.getItem('weibo_cookie');
-      url = '/api/weibo?url=' + encodeURIComponent(input) + (wk ? '&cookie=' + encodeURIComponent(wk) : '');
-    } else if (/music\.163\.com|163cn\.tv/i.test(input)) {
-      // 网易云链接：已登录则带 MUSIC_U 走 wyy 接口（可拿播放地址）
-      const wy = localStorage.getItem('wyy_music_u');
-      url = '/api/wyy?url=' + encodeURIComponent(input) + '&level=standard&type=json' + (wy ? '&cookie=' + encodeURIComponent(wy) : '');
-    } else {
-      url = '/api/sv?url=' + encodeURIComponent(input);
-    }
-    const resp = await fetch(url);
+    const headers = {};
+    if (getCookie('bili')) headers['x-bili-cookie'] = getCookie('bili');
+    if (getCookie('weibo')) headers['x-weibo-cookie'] = getCookie('weibo');
+    if (getCookie('wyy')) headers['x-wyy-cookie'] = getCookie('wyy');
+    const resp = await fetch('/api/sv?url=' + encodeURIComponent(input), { headers: headers });
     const json = await resp.json();
     out.textContent = JSON.stringify(json, null, 2);
   } catch (e) {
@@ -163,163 +526,7 @@ async function doParse() {
   btn.disabled = false; btn.textContent = '解析';
 }
 
-// ===== 哔哩哔哩 扫码登录 =====
-let biliPollTimer = null;
-function setBiliStatus(text, ok) {
-  const el = document.getElementById('bili-status');
-  el.textContent = text;
-  el.className = 'login-status' + (ok ? ' ok' : '');
-}
-function updateBiliUI() {
-  const logged = !!localStorage.getItem('bili_cookie');
-  document.getElementById('bili-login-btn').style.display = logged ? 'none' : '';
-  document.getElementById('bili-logout-btn').style.display = logged ? '' : 'none';
-  setBiliStatus(logged ? '已登录' : '未登录', logged);
-}
-function biliLogout() {
-  localStorage.removeItem('bili_cookie');
-  stopBiliPoll();
-  document.getElementById('bili-qr-area').style.display = 'none';
-  updateBiliUI();
-}
-function stopBiliPoll() {
-  if (biliPollTimer) { clearInterval(biliPollTimer); biliPollTimer = null; }
-}
-async function biliLogin() {
-  const btn = document.getElementById('bili-login-btn');
-  btn.disabled = true; btn.textContent = '获取二维码...';
-  try {
-    const resp = await fetch('/api/bilibili?login=gen');
-    const gen = await resp.json();
-    if (gen.code !== 0 || !gen.url) { alert('获取二维码失败：' + (gen.msg || '未知错误')); return; }
-    // 渲染二维码
-    const dataUrl = await QRCode.toDataURL(gen.url, { width: 200, margin: 1 });
-    document.getElementById('bili-qr-img').src = dataUrl;
-    document.getElementById('bili-qr-area').style.display = 'block';
-    setBiliStatus('等待扫码', false);
-    document.getElementById('bili-qr-tip').textContent = '请用哔哩哔哩 App 扫码登录';
-    // 轮询登录状态
-    const key = gen.qrcode_key;
-    stopBiliPoll();
-    biliPollTimer = setInterval(async () => {
-      try {
-        const pr = await fetch('/api/bilibili?login=poll&qrcode_key=' + encodeURIComponent(key));
-        const poll = await pr.json();
-        if (poll.code === 0 && poll.cookie) {
-          // 登录成功，存 cookie
-          localStorage.setItem('bili_cookie', poll.cookie);
-          stopBiliPoll();
-          document.getElementById('bili-qr-area').style.display = 'none';
-          updateBiliUI();
-        } else if (poll.code === 1) {
-          setBiliStatus('已扫码，请在手机确认', false);
-        } else if (poll.code === -1) {
-          // 二维码失效
-          stopBiliPoll();
-          setBiliStatus('二维码已失效', false);
-          document.getElementById('bili-qr-tip').textContent = '二维码已失效，请重新点击「扫码登录」';
-          document.getElementById('bili-qr-img').src = '';
-        }
-        // code 2 = 等待扫码，继续轮询
-      } catch (e) { /* 网络错误，继续轮询 */ }
-    }, 2000);
-  } catch (e) {
-    alert('登录出错：' + e.message);
-  } finally {
-    btn.disabled = false; btn.textContent = '扫码登录';
-  }
-}
-// 页面加载时恢复登录状态
-updateBiliUI();
-
-// ===== 微博 登录（Cookie 粘贴式） =====
-function setWeiboStatus(text, ok) {
-  const el = document.getElementById('weibo-status');
-  el.textContent = text;
-  el.className = 'login-status' + (ok ? ' ok' : '');
-}
-function updateWeiboUI() {
-  const logged = !!localStorage.getItem('weibo_cookie');
-  document.getElementById('weibo-cookie-input').style.display = logged ? 'none' : '';
-  document.getElementById('weibo-save-btn').style.display = logged ? 'none' : '';
-  document.getElementById('weibo-logout-btn').style.display = logged ? '' : 'none';
-  setWeiboStatus(logged ? '已登录' : '未登录', logged);
-}
-function weiboSave() {
-  const val = document.getElementById('weibo-cookie-input').value.trim();
-  if (!val) { alert('请先粘贴微博 Cookie'); return; }
-  localStorage.setItem('weibo_cookie', val);
-  document.getElementById('weibo-cookie-input').value = '';
-  updateWeiboUI();
-}
-function weiboLogout() {
-  localStorage.removeItem('weibo_cookie');
-  updateWeiboUI();
-}
-updateWeiboUI();
-
-// ===== 网易云音乐 扫码登录 =====
-let wyyPollTimer = null;
-function setWyyStatus(text, ok) {
-  const el = document.getElementById('wyy-status');
-  el.textContent = text;
-  el.className = 'login-status' + (ok ? ' ok' : '');
-}
-function updateWyyUI() {
-  const logged = !!localStorage.getItem('wyy_music_u');
-  document.getElementById('wyy-login-btn').style.display = logged ? 'none' : '';
-  document.getElementById('wyy-logout-btn').style.display = logged ? '' : 'none';
-  setWyyStatus(logged ? '已登录' : '未登录', logged);
-}
-function wyyLogout() {
-  localStorage.removeItem('wyy_music_u');
-  stopWyyPoll();
-  document.getElementById('wyy-qr-area').style.display = 'none';
-  updateWyyUI();
-}
-function stopWyyPoll() {
-  if (wyyPollTimer) { clearInterval(wyyPollTimer); wyyPollTimer = null; }
-}
-async function wyyLogin() {
-  const btn = document.getElementById('wyy-login-btn');
-  btn.disabled = true; btn.textContent = '获取二维码...';
-  try {
-    const resp = await fetch('/api/wyy?login=gen');
-    const gen = await resp.json();
-    if (gen.code !== 0 || !gen.url) { alert('获取二维码失败：' + (gen.msg || '未知错误')); return; }
-    const dataUrl = await QRCode.toDataURL(gen.url, { width: 200, margin: 1 });
-    document.getElementById('wyy-qr-img').src = dataUrl;
-    document.getElementById('wyy-qr-area').style.display = 'block';
-    setWyyStatus('等待扫码', false);
-    document.getElementById('wyy-qr-tip').textContent = '请用网易云音乐 App 扫码登录';
-    const key = gen.unikey;
-    stopWyyPoll();
-    wyyPollTimer = setInterval(async () => {
-      try {
-        const pr = await fetch('/api/wyy?login=poll&key=' + encodeURIComponent(key));
-        const poll = await pr.json();
-        if (poll.code === 0 && poll.music_u) {
-          localStorage.setItem('wyy_music_u', poll.music_u);
-          stopWyyPoll();
-          document.getElementById('wyy-qr-area').style.display = 'none';
-          updateWyyUI();
-        } else if (poll.code === 1) {
-          setWyyStatus('已扫码，请在手机确认', false);
-        } else if (poll.code === -1) {
-          stopWyyPoll();
-          setWyyStatus('二维码已过期', false);
-          document.getElementById('wyy-qr-tip').textContent = '二维码已过期，请重新点击「扫码登录」';
-          document.getElementById('wyy-qr-img').src = '';
-        }
-      } catch (e) { /* 继续轮询 */ }
-    }, 2000);
-  } catch (e) {
-    alert('登录出错：' + e.message);
-  } finally {
-    btn.disabled = false; btn.textContent = '扫码登录';
-  }
-}
-updateWyyUI();
+refreshChips();
 </script>
 </body>
 </html>

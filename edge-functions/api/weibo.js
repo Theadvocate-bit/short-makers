@@ -15,7 +15,7 @@ const CORS_HEADERS = {
   "content-type": "application/json; charset=utf-8",
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "GET,POST,OPTIONS",
-  "access-control-allow-headers": "Content-Type",
+  "access-control-allow-headers": "Content-Type,x-bili-cookie,x-weibo-cookie,x-wyy-cookie",
 };
 
 // PHP base64_encode 等价实现（按字节编码）
@@ -95,10 +95,10 @@ async function extractVideoId(url) {
   return id;
 }
 
-// 对应 PHP getRequestHeaders()：微博web端cookie（用户扫码/粘贴登录后传入）
+// 对应 PHP getRequestHeaders()：微博web端cookie（登录态可选：扫码登录后由前端透传，或环境变量 WEIBO_COOKIE）
 function getRequestHeaders(userCookie) {
   return {
-    cookie: (userCookie && String(userCookie).trim()) || "",
+    cookie: userCookie || "",
     referer: "https://weibo.com/",
     "user-agent":
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
@@ -287,8 +287,8 @@ async function fetchVideoInfo(videoId, headers) {
   }
 }
 
-// 对应 PHP main()
-export async function parse(shareUrl, env, userCookie) {
+// 对应 PHP main()（登录态可选：opts.weiboCookie > 环境变量 WEIBO_COOKIE > 空（免登录））
+export async function parse(shareUrl, env, opts = {}) {
   const url = shareUrl === undefined || shareUrl === null ? "" : String(shareUrl);
 
   if (phpEmpty(url)) {
@@ -300,6 +300,9 @@ export async function parse(shareUrl, env, userCookie) {
     return { code: 404, msg: `无法从URL中提取视频ID: ${url}` };
   }
 
+  const userCookie =
+    (opts && opts.weiboCookie ? String(opts.weiboCookie) : "") ||
+    (env && env.WEIBO_COOKIE ? String(env.WEIBO_COOKIE) : "");
   const headers = getRequestHeaders(userCookie);
   const result = await fetchVideoInfo(videoId, headers);
   return result;
@@ -331,10 +334,8 @@ export async function onRequest(context) {
   if (!input) {
     return jsonResponse({ code: 400, msg: "参数url不能为空" });
   }
-  // 用户登录后携带的 cookie（前端从 localStorage 取）
-  const userCookie = u.searchParams.get("cookie") || "";
   try {
-    return jsonResponse(await parse(input, context.env, userCookie));
+    return jsonResponse(await parse(input, context.env));
   } catch (e) {
     return jsonResponse({
       code: 500,

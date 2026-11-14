@@ -79,6 +79,29 @@ edgeone pages deploy   # 或本地调试：edgeone pages dev
 | 变量 | 必需 | 说明 |
 |------|:---:|------|
 | `DOUYIN_HOME_COOKIE` | 仅 /api/douyin/home 需要 | 抖音登录 Cookie，用于主页批量解析；其余接口均免 Cookie |
+| `BILI_COOKIE` | 可选 | B站全局默认 Cookie（服务端兜底），仅当请求未携带用户自己的 Cookie 时使用 |
+| `WEIBO_COOKIE` | 可选 | 微博全局默认 Cookie（兜底），用户请求未携带 `x-weibo-cookie` 时使用 |
+| `WYY_COOKIE` | 可选 | 网易云全局默认 Cookie（兜底），用户请求未携带 `x-wyy-cookie` 时使用 |
+
+### 三平台登录入口（前端已内置）
+
+首页「在线测试」板块内提供 B站 / 微博 / 网易云 登录入口：
+
+- **B站**：扫码登录、账号密码登录、短信登录三种方式。密码/短信登录会触发 geetest 滑块
+  风控，**验证码由用户在前端手动完成挑战**（geetest gt.js 官方组件，弹出滑块由用户拖动），
+  完成后携带 validate/seccode 提交登录。密码经服务端 RSA PKCS1v1.5（纯 JS 实现）加密
+  md5(password) 后提交，密码不落盘。
+- **微博**：扫码登录（passport sso v2）、账号密码登录（经典 sina SSO：prelogin →
+  RSA PKCS1v1.5 加密 `servertime\tnonce\n密码`（hex 模数，纯 JS BigInt 实现）→ login.php →
+  遍历 crossDomainUrlList 收集 SUB/SUBP 等完整 Cookie）。
+- **网易云**：扫码登录（eapi unikey）、手机号密码登录 / 邮箱密码登录、短信验证码登录
+  （weapi 加密：双层 AES-128-CBC + 裸 RSA，纯 JS 实现，见 `wyy/login/weapi.js`）。
+  注意网易云对陌生 IP 有 `-460 风控` 可能，部署后如遇风控请优先使用扫码登录。
+
+所有登录 Cookie **仅保存在用户自己的浏览器 localStorage**，解析请求时通过
+`x-bili-cookie` / `x-weibo-cookie` / `x-wyy-cookie` 请求头随请求转发，边缘函数不做任何
+存储。**未登录或 Cookie 失效时自动使用免登录版本解析，互不影响**（B站链路免 Cookie 已
+实测可用；登录后画质/可用性提升取决于各平台对对应账号的策略）。
 
 ## 📖 接口速查
 
@@ -91,14 +114,25 @@ edgeone pages deploy   # 或本地调试：edgeone pages dev
 | `/api/douyin/home?url=` | `api/douyin-home/home.php` |
 | `/api/kuaishou?url=` | `api/kuaishou/ksjx.php` |
 | `/api/xiaohongshu?url=` | `api/xiaohongshu/xhsjx.php` |
-| `/api/bilibili?url=` | `api/bilibili/bilibili.php`（`&ver=old` 旧版） |
-| `/api/weibo?url=` | `api/weibo.php` |
+| `/api/bilibili?url=` | `api/bilibili/bilibili.php`（`&ver=old` 旧版；支持 `x-bili-cookie` 请求头或 `?cookie=` 参数携带登录 Cookie 提升画质） |
+| `/api/bilibili/login/qr` | **新增**：B站扫码登录·生成二维码（返回 `qrcode_key` + `qr_url`） |
+| `/api/bilibili/login/poll?qrcode_key=` | **新增**：B站扫码登录·轮询状态（成功返回 `cookie`/`cookie_map`，status: waiting/scanned/confirmed/expired） |
+| `/api/bilibili/login/captcha` | **新增**：B站登录·获取 geetest 验证码参数（`token`/`gt`/`challenge`，滑块由用户手动完成） |
+| `/api/bilibili/login/password` | **新增**：B站账号密码登录（服务端 RSA PKCS1v1.5 加密 md5(password)，需先完成 geetest 挑战） |
+| `/api/bilibili/login/sms/send` | **新增**：B站短信登录·发送验证码（需先完成 geetest 挑战，返回 `grecaptcha_token`） |
+| `/api/bilibili/login/sms/confirm` | **新增**：B站短信登录·验证码确认登录 |
+| `/api/weibo/login/qr` · `/api/weibo/login/poll?qrid=` | **新增**：微博扫码登录（passport sso v2，成功换取 SUB/SUBP 等 Cookie） |
+| `/api/weibo/login/password` | **新增**：微博账号密码登录（经典 sina SSO 流程，RSA 加密密码，成功返回完整 Cookie） |
+| `/api/wyy/login/qr` · `/api/wyy/login/poll?key=` | **新增**：网易云扫码登录（eapi unikey，成功换取 MUSIC_U/__csrf Cookie） |
+| `/api/wyy/login/password` | **新增**：网易云手机号/邮箱密码登录（weapi 加密） |
+| `/api/wyy/login/sms/send` · `/api/wyy/login/sms/confirm` | **新增**：网易云短信验证码发送与登录（weapi 加密） |
+| `/api/weibo?url=` | `api/weibo.php`（支持 `x-weibo-cookie` 请求头 / `?weibo_cookie=` 参数携带登录 Cookie） |
 | `/api/weibo_v?url=` | `api/weibo_v.php` |
 | `/api/toutiao?url=` | `api/toutiao.php` |
 | `/api/ppxia?url=` | `api/ppxia.php` |
 | `/api/pipigx?url=` | `api/pipigx.php` |
 | `/api/zuiyou?url=` | `api/zuiyou.php` |
-| `/api/wyy?url=` | `api/wyy.py` |
+| `/api/wyy?url=` | `api/wyy.py`（支持 `x-wyy-cookie` 请求头 / `?wyy_cookie=` 参数携带登录 Cookie） |
 | `/api/doubao/video?url=` | `api/doubao/video/api.php` |
 | `/api/doubao/duihua?url=` | `api/doubao/duihua/duihua.php` |
 | `/api/jimengai?url=` | `api/jimengai/index.php` |

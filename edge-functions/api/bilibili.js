@@ -353,9 +353,11 @@ function extractBilibiliBVId(html) {
 // ---------- 旧版入口（api/bilibili/bilibili.php）移植 ----------
 
 // 旧版：bilibili解析（含分P error 结构；仅单分P时按 PHP 原版 quirks 不输出 videos 字段）
-export async function parseLegacy(shareUrl, env) {
-  // 这里填写你的B站cookie(不填解析不到1080P以上) 格式为_uuid=XXXXX
-  const cookie = "";
+// cookie来源优先级：opts.cookie > 环境变量 BILI_COOKIE > 空（免登录，pagelist→playurl 链路可用）
+export async function parseLegacy(shareUrl, env, opts = {}) {
+  const cookie =
+    (opts && phpIsset(opts.cookie) ? String(opts.cookie) : "") ||
+    (env && phpIsset(env.BILI_COOKIE) ? String(env.BILI_COOKIE) : "");
   const headers = ["Content-type: application/json;charset=UTF-8", "Referer: https://www.bilibili.com/"];
   const useragent =
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.81 Safari/537.36";
@@ -438,14 +440,12 @@ export async function parseLegacy(shareUrl, env) {
       for (let index = 0; index < pages.length; index++) {
         const page = pages[index] ?? {};
         // 请求视频直链API
-        // 有登录 cookie：不用 platform=html5（那会锁 720P），尝试拿更高清晰度
-        // 无 cookie：platform=html5 免登录可用（720P）
         const apiUrl =
           "https://api.bilibili.com/x/player/playurl?otype=json&fnver=0&fnval=3&player=3&qn=112&bvid=" +
           bvid +
           "&cid=" +
           (phpIsset(page.cid) ? page.cid : "") +
-          (cookie ? "&high_quality=1" : "&platform=html5&high_quality=1");
+          "&platform=html5&high_quality=1";
         const jsonResponse = await biliRequest(apiUrl, headers, useragent, cookie);
 
         // 解析API返回的JSON数据
@@ -695,62 +695,21 @@ class BilibiliParser {
 
 // ---------- 新版入口（api/bilibili/index.php）移植：默认导出的 parse ----------
 
-// cookie必填（不填解析不到1080P以上）→ 现已无需 Cookie：pagelist→playurl 链路免 Cookie 可用
-// 有用户 cookie（扫码登录获得）时用它：playurl 走高清，且请求带登录态
-export async function parse(shareUrl, env, userCookie) {
-  const cookie = (userCookie && String(userCookie).trim()) || "";
+// cookie来源优先级：用户扫码登录传入的 opts.cookie > 环境变量 BILI_COOKIE > 空（免登录）
+export async function parse(shareUrl, env, opts = {}) {
+  const cookie =
+    (opts && phpIsset(opts.cookie) ? String(opts.cookie) : "") ||
+    (env && phpIsset(env.BILI_COOKIE) ? String(env.BILI_COOKIE) : "");
   // Initialize parser and output result
   const parser = new BilibiliParser(cookie);
   return await parser.parse(shareUrl == null ? "" : String(shareUrl));
-}
-
-// ---------- B站扫码登录（用户手动扫码=手动挑战，边缘函数轮询拿 cookie） ----------
-const BILI_QR_GEN = "https://passport.bilibili.com/x/passport-login/web/qrcode/generate";
-const BILI_QR_POLL = "https://passport.bilibili.com/x/passport-login/web/qrcode/poll?qrcode_key=";
-const LOGIN_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36";
-
-async function qrGenerate() {
-  const res = await fetch(BILI_QR_GEN, {
-    headers: { "User-Agent": LOGIN_UA, "Referer": "https://www.bilibili.com/" },
-    signal: timeoutSignal(15000),
-  });
-  const j = await res.json();
-  if (j.code !== 0) throw new Error("生成二维码失败: " + (j.message || j.code));
-  return { qrcode_key: j.data.qrcode_key, url: j.data.url };
-}
-
-async function qrPoll(key) {
-  const res = await fetch(BILI_QR_POLL + encodeURIComponent(key), {
-    headers: { "User-Agent": LOGIN_UA, "Referer": "https://www.bilibili.com/" },
-    signal: timeoutSignal(15000),
-  });
-  const j = await res.json();
-  const st = j.data ? j.data.code : -1;
-  if (st === 0) {
-    // 登录成功，cookie 在响应的 Set-Cookie 头里
-    let cookies = [];
-    if (typeof res.headers.getSetCookie === "function") {
-      cookies = res.headers.getSetCookie();
-    } else {
-      const sc = res.headers.get("set-cookie");
-      if (sc) cookies = sc.split(/,(?=[^;]+?=)/);
-    }
-    const cookie = cookies.map((c) => String(c).split(";")[0].trim()).filter(Boolean).join("; ");
-    return { code: 0, status: "success", cookie, message: "登录成功" };
-  } else if (st === 86090) {
-    return { code: 1, status: "scanned", message: "已扫码，请在手机上确认" };
-  } else if (st === 86038) {
-    return { code: -1, status: "expired", message: "二维码已失效，请刷新重试" };
-  } else {
-    return { code: 2, status: "waiting", message: "等待扫码" };
-  }
 }
 
 const CORS_HEADERS = {
   "content-type": "application/json; charset=utf-8",
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "GET,POST,OPTIONS",
-  "access-control-allow-headers": "Content-Type",
+  "access-control-allow-headers": "Content-Type,x-bili-cookie,x-weibo-cookie,x-wyy-cookie",
 };
 
 export function jsonResponse(data) {
@@ -762,29 +721,8 @@ export async function onRequest(context) {
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
-  const u = new URL(request.url);
-
-  // ---- 扫码登录入口：?login=gen 生成二维码；?login=poll&qrcode_key=xxx 轮询 ----
-  const loginOp = (u.searchParams.get("login") || "").toLowerCase();
-  if (loginOp === "gen") {
-    try {
-      const qr = await qrGenerate();
-      return jsonResponse({ code: 0, qrcode_key: qr.qrcode_key, url: qr.url });
-    } catch (e) {
-      return jsonResponse({ code: 500, msg: "生成二维码失败: " + (e && e.message ? e.message : "未知错误") });
-    }
-  }
-  if (loginOp === "poll") {
-    const key = u.searchParams.get("qrcode_key") || "";
-    if (!key) return jsonResponse({ code: 400, msg: "缺少 qrcode_key" });
-    try {
-      return jsonResponse(await qrPoll(key));
-    } catch (e) {
-      return jsonResponse({ code: 500, msg: "轮询失败: " + (e && e.message ? e.message : "未知错误") });
-    }
-  }
-
   let input = "";
+  const u = new URL(request.url);
   input = u.searchParams.get("url") || "";
   if (!input && request.method === "POST") {
     try {
@@ -805,15 +743,19 @@ export async function onRequest(context) {
     // 与 PHP 两版入口一致：{code:201, msg:'链接不能为空！'}
     return jsonResponse({ code: 201, msg: "链接不能为空！" });
   }
-  // 用户登录后携带的 cookie（前端从 localStorage 取，扫码登录获得）
-  const userCookie = u.searchParams.get("cookie") || "";
   try {
     // ver=old / version=old 时走旧版 bilibili.php 逻辑，默认走新版 index.php 逻辑
     const version = (u.searchParams.get("ver") || u.searchParams.get("version") || "").toLowerCase();
+    // 用户 Cookie：优先请求头 x-bili-cookie（扫码登录后前端附加），其次 ?cookie= 查询参数
+    const cookie =
+      request.headers.get("x-bili-cookie") ||
+      u.searchParams.get("cookie") ||
+      "";
+    const opts = { cookie: String(cookie).trim() };
     if (version === "old" || version === "legacy") {
-      return jsonResponse(await parseLegacy(input, context.env));
+      return jsonResponse(await parseLegacy(input, context.env, opts));
     }
-    return jsonResponse(await parse(input, context.env, userCookie));
+    return jsonResponse(await parse(input, context.env, opts));
   } catch (e) {
     return jsonResponse({ code: 500, msg: "解析失败: " + (e && e.message ? e.message : "未知错误"), data: [] });
   }

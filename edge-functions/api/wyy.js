@@ -14,7 +14,7 @@ const CORS_HEADERS = {
     "content-type": "application/json; charset=utf-8",
     "access-control-allow-origin": "*",
     "access-control-allow-methods": "GET,POST,OPTIONS",
-    "access-control-allow-headers": "Content-Type",
+    "access-control-allow-headers": "Content-Type,x-bili-cookie,x-weibo-cookie,x-wyy-cookie",
 }
 
 function jsonResponse(data, status) {
@@ -253,57 +253,13 @@ function parseCookie(text) {
 }
 
 // 等价 Python read_cookie()：默认 MUSIC_U 空值 cookie（cookie 以此格式填写）
-// 用户扫码登录后传入 MUSIC_U 覆盖空值
-function readCookie(userMusicU) {
-    const mu = userMusicU && String(userMusicU).trim() !== "" ? String(userMusicU).trim() : "";
-    return "MUSIC_U=" + mu + ";os=pc;appver=8.9.75;";
-}
-
-// ---------- 网易云扫码登录（用户扫码=手动挑战，边缘函数轮询拿 MUSIC_U） ----------
-const WYY_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/123.0.0.0 Safari/537.36";
-
-async function wyyQrGenerate() {
-    const resp = await fetch("https://music.163.com/api/login/qrcode/unikey?type=1", {
-        method: "POST",
-        headers: {"User-Agent": WYY_UA, "Referer": "https://music.163.com/"},
-        signal: timeoutSignal(15000),
-    });
-    const j = await resp.json();
-    if (j.code !== 200 || !j.unikey) throw new Error("生成二维码失败: " + (j.message || j.code));
-    // 扫码内容为该 URL，网易云 App 扫码后确认登录
-    return { unikey: j.unikey, url: "https://music.163.com/login?keykey=" + j.unikey };
-}
-
-async function wyyQrPoll(key) {
-    const resp = await fetch("https://music.163.com/api/login/qrcode/client/login?key=" + encodeURIComponent(key) + "&type=1", {
-        headers: {"User-Agent": WYY_UA, "Referer": "https://music.163.com/"},
-        signal: timeoutSignal(15000),
-    });
-    const j = await resp.json();
-    const code = j.code;
-    if (code === 803) {
-        // 登录成功，MUSIC_U 在 Set-Cookie
-        let cookies = [];
-        if (typeof resp.headers.getSetCookie === "function") {
-            cookies = resp.headers.getSetCookie();
-        } else {
-            const sc = resp.headers.get("set-cookie");
-            if (sc) cookies = sc.split(/,(?=[^;]+?=)/);
-        }
-        let musicU = "";
-        for (const c of cookies) {
-            const pair = String(c).split(";")[0].trim();
-            if (pair.startsWith("MUSIC_U=")) { musicU = pair.slice("MUSIC_U=".length); break; }
-        }
-        return { code: 0, status: "success", music_u: musicU, message: "登录成功" };
-    } else if (code === 802) {
-        return { code: 1, status: "scanned", message: "已扫码，请在手机确认" };
-    } else if (code === 800) {
-        return { code: -1, status: "expired", message: "二维码已过期，请刷新重试" };
-    } else {
-        // 801 = 等待扫码
-        return { code: 2, status: "waiting", message: "等待扫码" };
-    }
+// 登录态可选：opts.wyyCookie（扫码登录后由前端透传）> 环境变量 WYY_COOKIE > 匿名 cookie
+function resolveWyyCookie(opts, env) {
+    return (
+        (opts && opts.wyyCookie ? String(opts.wyyCookie) : "") ||
+        (env && env.WYY_COOKIE ? String(env.WYY_COOKIE) : "") ||
+        "MUSIC_U=;os=pc;appver=8.9.75;"
+    );
 }
 
 // 等价 Python post()：eapi 表单请求（cookie 合并基础字段后拼入 Cookie 头）
@@ -466,7 +422,7 @@ export async function parse(shareUrl, env, opts = {}) {
     }
 
     const jsondata = songIds || urlParam;
-    const cookies = parseCookie(readCookie(opts.cookie));
+    const cookies = parseCookie(resolveWyyCookie(opts, env));
     const urlv1 = await urlV1(await resolveId(jsondata), level, cookies);
     const d0 = urlv1 && urlv1.data && urlv1.data[0] ? urlv1.data[0] : null;
     if (!d0) {
@@ -536,29 +492,8 @@ export async function onRequest(context) {
         return new Response(null, {status: 204, headers: CORS_HEADERS});
     }
 
-    const u = new URL(request.url);
-
-    // ---- 扫码登录入口：?login=gen 生成二维码；?login=poll&key=xxx 轮询 ----
-    const loginOp = (u.searchParams.get("login") || "").toLowerCase();
-    if (loginOp === "gen") {
-        try {
-            const qr = await wyyQrGenerate();
-            return jsonResponse({code: 0, unikey: qr.unikey, url: qr.url});
-        } catch (e) {
-            return jsonResponse({code: 500, msg: "生成二维码失败: " + (e && e.message ? e.message : "未知错误")});
-        }
-    }
-    if (loginOp === "poll") {
-        const key = u.searchParams.get("key") || "";
-        if (!key) return jsonResponse({code: 400, msg: "缺少 key"});
-        try {
-            return jsonResponse(await wyyQrPoll(key));
-        } catch (e) {
-            return jsonResponse({code: 500, msg: "轮询失败: " + (e && e.message ? e.message : "未知错误")});
-        }
-    }
-
     let ids = "", url = "", level = "", type = "";
+    const u = new URL(request.url);
 
     if (request.method === "POST") {
         try {
@@ -595,11 +530,8 @@ export async function onRequest(context) {
     // ids 优先于 url（与 Python 版 jsondata = song_ids if song_ids else url 一致）
     const input = ids && String(ids).trim() !== "" ? String(ids) : String(url || "");
 
-    // 用户扫码登录后的 MUSIC_U（前端从 localStorage 取）
-    const userCookie = u.searchParams.get("cookie") || "";
-
     try {
-        const result = await parse(input, context.env, {ids: ids, level: level, type: type, cookie: userCookie});
+        const result = await parse(input, context.env, {ids: ids, level: level, type: type});
         // 与 Flask 版一致：错误（{error:...} 或 status:400）返回 HTTP 400
         const status = result && (result.error !== undefined || result.status === 400) ? 400 : 200;
         return jsonResponse(result, status);

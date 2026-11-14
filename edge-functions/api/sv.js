@@ -38,7 +38,7 @@ const CORS_HEADERS = {
     'content-type': 'application/json; charset=utf-8',
     'access-control-allow-origin': '*',
     'access-control-allow-methods': 'GET,POST,OPTIONS',
-    'access-control-allow-headers': 'Content-Type',
+    'access-control-allow-headers': 'Content-Type,x-bili-cookie,x-weibo-cookie,x-wyy-cookie',
 };
 
 function jsonResponse(data) {
@@ -71,8 +71,9 @@ function matchPlatform(text) {
  * 聚合解析：自动识别平台并调用对应解析器
  * @param {string} url 用户输入的分享文本或链接
  * @param {object} env EdgeOne 环境变量
+ * @param {object} opts 可选参数（opts.cookie: 用户 B站 Cookie，透传给对应解析器）
  */
-export async function parse(url, env) {
+export async function parse(url, env, opts = {}) {
     if (!url || (typeof extractShareUrl(url) !== 'string')) {
         return { code: 400, msg: '请输入有效的链接', data: [] };
     }
@@ -82,7 +83,8 @@ export async function parse(url, env) {
         return { code: 201, msg: '不支持您输入的链接平台', data: [] };
     }
     try {
-        return await platform.parse(shareUrl, env);
+        // 透传用户 Cookie（三平台各自的登录态；解析器按需取用，未用到的自动忽略）
+        return await platform.parse(shareUrl, env, opts || {});
     } catch (e) {
         return { code: 500, msg: '请求接口失败: ' + (e && e.message ? e.message : '未知错误'), data: [] };
     }
@@ -96,6 +98,12 @@ export async function onRequest(context) {
     // 获取请求参数（GET/POST 均支持，兼容未编码的分享文本）
     let url = '';
     const u = new URL(request.url);
+    // 用户 Cookie（三平台各自独立）：优先请求头（扫码登录后前端附加），其次查询参数
+    const cookieOpts = {
+        cookie: request.headers.get('x-bili-cookie') || u.searchParams.get('cookie') || '',
+        weiboCookie: request.headers.get('x-weibo-cookie') || u.searchParams.get('weibo_cookie') || '',
+        wyyCookie: request.headers.get('x-wyy-cookie') || u.searchParams.get('wyy_cookie') || '',
+    };
     // 与 PHP 版一致：从原始 query 串定位 url=，取其后全部内容（保留分享链接自带的 & 等字符）
     const qs = u.search || '';
     const urlParamPos = qs.indexOf('url=');
@@ -117,5 +125,5 @@ export async function onRequest(context) {
         }
     }
 
-    return jsonResponse(await parse(url, context.env));
+    return jsonResponse(await parse(url, context.env, cookieOpts));
 }
