@@ -114,6 +114,7 @@ edgeone pages deploy   # 或本地调试：edgeone pages dev
 - `json_encode(…, 480)` 的 `JSON_NUMERIC_CHECK` 语义未复刻：个别纯数字字符串字段（如新版 B 站 `cid`）JS 版保持字符串
 - `sv.php` 聚合入口不再回环 HTTP 自转发，而是直接调用解析器模块，`$allowedHosts`/SSRF 防护不再需要
 - 边缘函数单次执行 CPU 时间上限 200ms、代码包 5MB，本项目的纯 I/O 型解析逻辑不受影响
+- **B 站取数链路变更**：原 view 接口（`x/web-interface/view`）在边缘节点出口 IP 上易被 412 风控，已改为 `pagelist → playurl`（`x/player/pagelist` → `x/player/playurl`）链路，**无需任何 Cookie** 即返回真实视频数据；标题/封面/作者改从视频页 `__INITIAL_STATE__`/meta 标签兜底提取（失败时该字段降级为 null，分P直链不受影响）
 
 ## 📄 许可证
 

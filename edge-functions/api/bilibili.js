@@ -1,11 +1,3 @@
-
-// 边缘运行时不支持 AbortSignal.timeout，用受支持的 AbortController 实现超时
-function abortSignalTimeout(ms) {
-  const controller = new AbortController();
-  setTimeout(() => controller.abort(), ms);
-  return controller.signal;
-}
-
 /**
  * @Author: JH-Ahua
  * @CreateTime: 2025/12/29 下午6:52
@@ -15,6 +7,9 @@ function abortSignalTimeout(ms) {
  * @tip: bilibili解析（旧版 bilibili.php + 新版 BilibiliParser.php/index.php 双版本合并）
  * @Source: 由 api/bilibili/bilibili.php(旧版) + api/bilibili/BilibiliParser.php + api/bilibili/index.php(新版) 合并移植（逻辑原样保留）
  * @Remark: 已由 PHP 版移植为 EdgeOne Makers 边缘函数版
+ * @Fix: view 接口（x/web-interface/view）在边缘节点出口 IP 上易被 412 风控，
+ *       取数链路改为 pagelist→playurl（x/player/pagelist → x/player/playurl），无需任何 Cookie；
+ *       标题/封面/作者改从视频页 __INITIAL_STATE__/meta 标签兜底提取，失败时优雅降级为 null
  * @Usage: 默认走新版（index.php/BilibiliParser 逻辑）；请求加 ?ver=old 时走旧版（bilibili.php 逻辑，含分P error 结构）
  */
 
@@ -126,7 +121,7 @@ async function phpGetHeadersLocations(url) {
       const res = await fetch(current, {
         method: "GET",
         redirect: "manual",
-        signal: abortSignalTimeout(30000),
+        signal: timeoutSignal(30000),
       });
       const loc = res.headers.get("location");
       if (!loc) break;
@@ -172,6 +167,115 @@ function cleanUrlParameters(url) {
   return scheme + host + port + path + fragment;
 }
 
+// ---------- 视频页 meta 提取（配合 pagelist→playurl 链路补齐标题/封面/作者） ----------
+
+// HTML 实体解码（meta content 常见实体）
+function decodeHtmlEntities(s) {
+  return String(s)
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
+
+// 顺序无关地匹配 <meta> 标签中的 content（keys 为 property/itemprop/name 候选）
+function metaContent(html, keys) {
+  const tags = html.match(/<meta\s+[^>]*>/gi) || [];
+  for (const tag of tags) {
+    for (const key of keys) {
+      const re = new RegExp("(?:property|itemprop|name)\\s*=\\s*[\"']" + key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "[\"']", "i");
+      if (re.test(tag)) {
+        const cm = tag.match(/content\s*=\s*["']([^"']*)["']/i);
+        if (cm) return decodeHtmlEntities(cm[1]);
+      }
+    }
+  }
+  return null;
+}
+
+// 从页面 HTML 中提取 window.__INITIAL_STATE__（花括号平衡 + 字符串感知，避免非贪婪正则截断）
+function extractInitialState(html) {
+  const marker = "window.__INITIAL_STATE__=";
+  const markerIdx = html.indexOf(marker);
+  if (markerIdx === -1) return null;
+  let i = markerIdx + marker.length;
+  while (i < html.length && html[i] !== "{") {
+    if (html[i] === ";" || html[i] === "<") return null;
+    i++;
+  }
+  const objStart = i;
+  let depth = 0, inStr = false, quote = "", esc = false;
+  for (; i < html.length; i++) {
+    const c = html[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === "\\") esc = true;
+      else if (c === quote) inStr = false;
+    } else if (c === '"' || c === "'") {
+      inStr = true;
+      quote = c;
+    } else if (c === "{") {
+      depth++;
+    } else if (c === "}") {
+      depth--;
+      if (depth === 0) {
+        try {
+          return JSON.parse(html.slice(objStart, i + 1));
+        } catch (e) {
+          return null;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * 视频页兜底元数据：抓取 https://www.bilibili.com/video/{bvid} 页面，
+ * 优先 __INITIAL_STATE__.videoData，失败再用 og/itemprop meta 标签兜底。
+ * 原 view 接口（x/web-interface/view）在边缘节点出口 IP 上存在 412 风控，
+ * 标题/封面/作者改由此处提供；全部失败时返回 null（输出字段优雅降级为 null）。
+ */
+async function fetchVideoMetaFromPage(bvid) {
+  const html = await getFinalHtmlContent("https://www.bilibili.com/video/" + bvid, 30, 10);
+  if (!html) return null;
+
+  // 1) __INITIAL_STATE__ 提取
+  const state = extractInitialState(html);
+  const vd = state && phpIsset(state.videoData) ? state.videoData : null;
+  if (vd) {
+    return {
+      title: phpIsset(vd.title) ? vd.title : null,
+      pic: phpIsset(vd.pic) ? vd.pic : null,
+      desc: phpIsset(vd.desc) ? vd.desc : null,
+      owner: {
+        name: phpIsset(vd?.owner?.name) ? vd.owner.name : null,
+        face: phpIsset(vd?.owner?.face) ? vd.owner.face : null,
+      },
+    };
+  }
+
+  // 2) meta 标签兜底
+  const title =
+    metaContent(html, ["og:title", "twitter:title", "name"]) ||
+    (html.match(/<h1[^>]*title[^>]*>([^<]+)<\/h1>/i) ? html.match(/<h1[^>]*title[^>]*>([^<]+)<\/h1>/i)[1].trim() : null);
+  const pic = metaContent(html, ["og:image", "twitter:image", "image"]);
+  const desc = metaContent(html, ["og:description", "twitter:description", "description"]);
+  const author = metaContent(html, ["author"]) || metaContent(html, ["og:site_name"]);
+  if (title == null && pic == null) return null;
+  return {
+    title: title,
+    pic: pic,
+    desc: desc,
+    owner: {
+      name: author,
+      face: null,
+    },
+  };
+}
+
 /**
  * 对应旧版 bilibili() 请求函数（PHP curl，不跟随重定向）
  */
@@ -182,7 +286,7 @@ async function biliRequest(url, header, user_agent, cookie) {
   try {
     const res = await fetch(url, {
       redirect: "manual",
-      signal: abortSignalTimeout(30000),
+      signal: timeoutSignal(30000),
       headers: h,
     });
     return await res.text();
@@ -213,7 +317,7 @@ async function getFinalHtmlContent(url, timeout = 30, maxRedirects = 10) {
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", // 模拟浏览器UA
       },
-      signal: abortSignalTimeout(timeout * 1000),
+      signal: timeoutSignal(timeout * 1000),
     });
     return await res.text();
   } catch (e) {
@@ -252,7 +356,7 @@ function extractBilibiliBVId(html) {
 export async function parseLegacy(shareUrl, env) {
   // 这里填写你的B站cookie(不填解析不到1080P以上) 格式为_uuid=XXXXX
   const cookie = "";
-  const headers = ["Content-type: application/json;charset=UTF-8"];
+  const headers = ["Content-type: application/json;charset=UTF-8", "Referer: https://www.bilibili.com/"];
   const useragent =
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.81 Safari/537.36";
 
@@ -289,6 +393,8 @@ export async function parseLegacy(shareUrl, env) {
   }
 
   bvid = bvid.replaceAll("/video/", "");
+  // 规范化：去掉末尾斜杠（pagelist/playurl 对 bvid 参数更严格）
+  bvid = bvid.replace(/\/+$/, "");
   if (!bvid.startsWith("BV")) {
     const bilibilihtml = await getFinalHtmlContent(urls);
     bvid = extractBilibiliBVId(bilibilihtml);
@@ -297,9 +403,10 @@ export async function parseLegacy(shareUrl, env) {
     return { code: 404, msg: "获取id失败" };
   }
 
-  // 获取解析需要的cid值和图片以及标题
+  // 获取解析需要的cid值（原 view 接口 x/web-interface/view 在边缘节点出口 IP 上存在 412 风控，
+  // 改用 pagelist→playurl 链路，无需任何 Cookie）
   const json1 = await biliRequest(
-    "https://api.bilibili.com/x/web-interface/view?bvid=" + bvid,
+    "https://api.bilibili.com/x/player/pagelist?bvid=" + bvid,
     headers,
     useragent,
     cookie
@@ -312,17 +419,21 @@ export async function parseLegacy(shareUrl, env) {
   }
 
   if (array2 != null && String(array2.code) === "0") {
-    const title = phpIsset(array2?.data?.title) ? array2.data.title : null;
-    const cover = phpIsset(array2?.data?.pic) ? array2.data.pic : null;
-    const desc = phpIsset(array2?.data?.desc) ? array2.data.desc : null;
-    const owner = phpIsset(array2?.data?.owner) ? array2.data.owner : null;
+    // 标题/封面/作者/简介改从视频页兜底提取（view 接口已弃用）；提取失败时优雅降级为 null
+    const meta = await fetchVideoMetaFromPage(bvid);
+    const title = phpIsset(meta?.title)
+      ? meta.title
+      : (Array.isArray(array2?.data) && array2.data.length > 0 && phpIsset(array2.data[0]?.part) ? array2.data[0].part : null);
+    const cover = phpIsset(meta?.pic) ? meta.pic : null;
+    const desc = phpIsset(meta?.desc) ? meta.desc : null;
+    const owner = phpIsset(meta?.owner) ? meta.owner : null;
 
     const videos = [];
     let realVideoUrl = null;
     let lastIndex = null;
 
-    // 循环获取所有分P的视频信息
-    const pages = phpIsset(array2?.data?.pages) ? array2.data.pages : null;
+    // 循环获取所有分P的视频信息（pagelist 的 data 即分P数组）
+    const pages = Array.isArray(array2?.data) ? array2.data : null;
     if (Array.isArray(pages)) {
       for (let index = 0; index < pages.length; index++) {
         const page = pages[index] ?? {};
@@ -442,22 +553,25 @@ class BilibiliParser {
 
     // （对应原 PHP 中此处的空校验块，为空操作，保持一致）
 
-    // Fetch View Info
-    const viewApiUrl = "https://api.bilibili.com/x/web-interface/view?bvid=" + bvid;
-    const jsonView = await this.request(viewApiUrl);
-    let viewData = null;
+    // Fetch pages via pagelist API（原 view 接口 x/web-interface/view 在边缘节点出口 IP 上存在 412 风控，
+    // 改用 pagelist→playurl 链路，无需任何 Cookie）
+    const pagelistApiUrl = "https://api.bilibili.com/x/player/pagelist?bvid=" + bvid;
+    const jsonPagelist = await this.request(pagelistApiUrl);
+    let pagelistData = null;
     try {
-      viewData = JSON.parse(jsonView);
+      pagelistData = JSON.parse(jsonPagelist);
     } catch (e) {
-      viewData = null;
+      pagelistData = null;
     }
 
-    if (viewData != null && String(phpIsset(viewData.code) ? viewData.code : -1) === "0") {
-      const pages = phpIsset(viewData?.data?.pages) ? viewData.data.pages : [];
+    if (pagelistData != null && String(phpIsset(pagelistData.code) ? pagelistData.code : -1) === "0") {
+      // 标题/封面/作者/简介改从视频页兜底提取（view 接口已弃用）；提取失败时优雅降级为 null
+      const meta = await fetchVideoMetaFromPage(bvid);
+      const pages = Array.isArray(pagelistData?.data) ? pagelistData.data : [];
       const bilijson = [];
 
       let index = 0;
-      for (const page of Array.isArray(pages) ? pages : []) {
+      for (const page of pages) {
         const p = page ?? {};
         const cid = phpIsset(p.cid) ? p.cid : null;
         const playApiUrl =
@@ -499,15 +613,17 @@ class BilibiliParser {
         code: 200,
         msg: "解析成功！",
         data: {
-          title: viewData?.data?.title ?? null,
-          cover: viewData?.data?.pic ?? null,
-          auther: viewData?.data?.owner?.name ?? null,
-          avatar: viewData?.data?.owner?.face ?? null,
-          description: viewData?.data?.desc ?? null,
+          title: phpIsset(meta?.title)
+            ? meta.title
+            : (pages.length > 0 && phpIsset(pages[0]?.part) ? pages[0].part : null),
+          cover: phpIsset(meta?.pic) ? meta.pic : null,
+          auther: phpIsset(meta?.owner?.name) ? meta.owner.name : null,
+          avatar: phpIsset(meta?.owner?.face) ? meta.owner.face : null,
+          description: phpIsset(meta?.desc) ? meta.desc : null,
           url: bilijson[0]?.url ?? "",
           user: {
-            name: viewData?.data?.owner?.name ?? null,
-            user_img: viewData?.data?.owner?.face ?? null,
+            name: phpIsset(meta?.owner?.name) ? meta.owner.name : null,
+            user_img: phpIsset(meta?.owner?.face) ? meta.owner.face : null,
           },
           videos: bilijson,
           totalVideos: bilijson.length,
@@ -552,16 +668,20 @@ class BilibiliParser {
     }
 
     bvid = bvid.replaceAll("/video/", "");
-    return bvid;
+    // 规范化：去掉末尾斜杠（pagelist/playurl 对 bvid 参数更严格）
+    return bvid.replace(/\/+$/, "");
   }
 
   async request(url) {
-    const header = { "Content-type": "application/json;charset=UTF-8" };
+    const header = {
+      "Content-type": "application/json;charset=UTF-8",
+      "Referer": "https://www.bilibili.com/",
+    };
     if (this.cookie) header["Cookie"] = this.cookie;
     try {
       const res = await fetch(url, {
         redirect: "manual",
-        signal: abortSignalTimeout(30000),
+        signal: timeoutSignal(30000),
         headers: { ...header, "User-Agent": this.userAgent },
       });
       return await res.text();
@@ -573,114 +693,12 @@ class BilibiliParser {
 
 // ---------- 新版入口（api/bilibili/index.php）移植：默认导出的 parse ----------
 
-// cookie必填（不填解析不到1080P以上）
+// cookie必填（不填解析不到1080P以上）→ 现已无需 Cookie：pagelist→playurl 链路免 Cookie 可用
 export async function parse(shareUrl, env) {
-  // 读 BILIBILI_COOKIE 环境变量（可选）。不填走免 cookie 链路（pagelist→playurl）。
-  const cookie = (env && env.BILIBILI_COOKIE) || "";
+  const cookie = "";
   // Initialize parser and output result
   const parser = new BilibiliParser(cookie);
-  const result = await parser.parse(shareUrl == null ? "" : String(shareUrl));
-  // view 接口对数据中心 IP + 无 cookie 返回 412（解析失败）。回退免 cookie 链路。
-  if (!result || result.code !== 200) {
-    return await bilibiliNoCookie(shareUrl == null ? "" : String(shareUrl), env);
-  }
-  return result;
-}
-
-/**
- * 免 cookie 链路：pagelist(拿 cid+分P标题) → 逐分P playurl(platform=html5, 拿直链)。
- * 实测 view 接口被边缘 IP 412 硬封，但 pagelist/playurl 不封，故无 cookie 也能解析。
- * 代价：拿不到封面/作者/简介（那些只在 view 接口里），仅有标题+视频直链。
- */
-async function bilibiliNoCookie(shareUrl, env) {
-  const parser = new BilibiliParser("");
-  const cleaned = cleanUrlParameters(shareUrl);
-  const bvid = await parser.extractBvid(cleaned);
-  if (!bvid) {
-    return { code: -1, msg: "视频链接好像不太对！", data: [] };
-  }
-
-  // pagelist/playurl 需带 UA + Referer 才不被 B 站风控（parser.request() 缺 Referer，故这里独立 fetch）
-  const biliHeaders = {
-    "Content-type": "application/json;charset=UTF-8",
-    "User-Agent": parser.userAgent,
-    Referer: "https://www.bilibili.com/",
-  };
-  const biliGet = async (url) => {
-    const res = await fetch(url, {
-      redirect: "follow",
-      signal: abortSignalTimeout(30000),
-      headers: biliHeaders,
-    });
-    const text = await res.text();
-    return { status: res.status, body: text };
-  };
-
-  let pagelist = null;
-  try {
-    const r = await biliGet("https://api.bilibili.com/x/player/pagelist?bvid=" + bvid);
-    pagelist = r.body && r.body.trim().startsWith("{") ? JSON.parse(r.body) : null;
-  } catch (e) {
-    pagelist = null;
-  }
-  if (!pagelist || String(pagelist.code ?? -1) !== "0" || !Array.isArray(pagelist.data)) {
-    return { code: 0, msg: "解析失败！", data: [] };
-  }
-
-  const pages = pagelist.data;
-  const bilijson = [];
-  let index = 0;
-  let lastUrl = "";
-  for (const page of pages) {
-    const p = page ?? {};
-    const cid = p.cid ?? null;
-    const playApiUrl =
-      "https://api.bilibili.com/x/player/playurl?otype=json&fnver=0&fnval=3&player=3&qn=112&bvid=" +
-      bvid +
-      "&cid=" +
-      (cid ?? "") +
-      "&platform=html5&high_quality=1";
-    let videoUrl = "";
-    try {
-      const rPlay = await biliGet(playApiUrl);
-      const playData = rPlay.body && rPlay.body.trim().startsWith("{") ? JSON.parse(rPlay.body) : null;
-      if (playData && playData?.data?.durl?.[0]?.url) {
-        videoUrl = String(playData.data.durl[0].url).replace(
-          /^https?:\/\/[^\/]+\//,
-          "https://upos-sz-mirrorhw.bilivideo.com/"
-        );
-      }
-    } catch (e) {
-      videoUrl = "";
-    }
-    if (videoUrl) lastUrl = videoUrl;
-    bilijson.push({
-      title: p.part ?? null,
-      duration: p.duration ?? null,
-      durationFormat: gmdateHIS((p.duration ?? 1) - 1),
-      accept: [],
-      url: videoUrl,
-      index: index + 1,
-    });
-    index++;
-  }
-
-  return {
-    code: 200,
-    msg: "解析成功！",
-    data: {
-      title: pages[0]?.part ?? null,
-      cover: null,
-      auther: null,
-      avatar: null,
-      description: null,
-      url: lastUrl,
-      user: { name: null, user_img: null },
-      videos: bilijson,
-      totalVideos: bilijson.length,
-      mode: "no-cookie",
-    },
-  };
+  return await parser.parse(shareUrl == null ? "" : String(shareUrl));
 }
 
 const CORS_HEADERS = {
@@ -731,4 +749,11 @@ export async function onRequest(context) {
   } catch (e) {
     return jsonResponse({ code: 500, msg: "解析失败: " + (e && e.message ? e.message : "未知错误"), data: [] });
   }
+}
+
+// ---------- 兼容性辅助：边缘函数运行时不支持 AbortSignal.timeout() ----------
+function timeoutSignal(ms) {
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), Number(ms) || 0);
+  return controller.signal;
 }

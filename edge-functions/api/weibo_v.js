@@ -1,11 +1,3 @@
-
-// 边缘运行时不支持 AbortSignal.timeout，用受支持的 AbortController 实现超时
-function abortSignalTimeout(ms) {
-  const controller = new AbortController();
-  setTimeout(() => controller.abort(), ms);
-  return controller.signal;
-}
-
 /**
  *@Author: JH-Ahua
  *@CreateTime: 2025/6/13 下午3:31
@@ -72,7 +64,7 @@ async function weiboCurl(id) {
       body: postData,
       redirect: "follow",
       // PHP CURLOPT_TIMEOUT = 5 秒
-      signal: abortSignalTimeout(5000),
+      signal: timeoutSignal(5000),
     });
     return await resp.text();
   } catch (e) {
@@ -164,4 +156,11 @@ export async function onRequest(context) {
       data: [],
     });
   }
+}
+
+// ---------- 兼容性辅助：边缘函数运行时不支持 AbortSignal.timeout() ----------
+function timeoutSignal(ms) {
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), Number(ms) || 0);
+  return controller.signal;
 }

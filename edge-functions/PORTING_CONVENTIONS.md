@@ -62,7 +62,15 @@ export async function onRequest(context) {
    - PHP 正则 → JS 正则：去掉分隔符与修饰符（`i`→`i`，`u`/`s` 按需），命名组 `(?<name>)` → `(?<name>)`（JS 同样支持）。
    - `strip_tags` → 用正则 `<[^>]*>` 去除。
    - 输出 JSON 结构、字段名、msg 文案必须与 PHP 版保持一致。
-   - 超时：对上游 fetch 使用 `AbortSignal.timeout(30000)`。
+   - 超时：对上游 fetch 使用兼容实现 `timeoutSignal(30000)`——**边缘函数运行时不支持 `AbortSignal.timeout()`**，必须用 AbortController + setTimeout 实现超时中止：
+
+```js
+function timeoutSignal(ms) {
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), Number(ms) || 0);
+  return controller.signal;
+}
+```
 
 4. 文件头注释：保留原作者信息（@Author/@email 等），追加一行 `@Remark: 已由 PHP 版移植为 EdgeOne Makers 边缘函数版`。
 

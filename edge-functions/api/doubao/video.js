@@ -1,11 +1,3 @@
-
-// 边缘运行时不支持 AbortSignal.timeout，用受支持的 AbortController 实现超时
-function abortSignalTimeout(ms) {
-  const controller = new AbortController();
-  setTimeout(() => controller.abort(), ms);
-  return controller.signal;
-}
-
 /**
  * @Author: JH-Ahua
  * @CreateTime: 2026/4/24 17:17
@@ -57,7 +49,7 @@ async function getRealUrl(url) {
             method: "GET",
             redirect: "follow",
             headers: {"user-agent": USER_AGENT},
-            signal: abortSignalTimeout(10000),
+            signal: timeoutSignal(10000),
         });
         return resp.url || url;
     } catch (e) {
@@ -124,7 +116,7 @@ async function requestApi(params) {
             headers: headers,
             body: JSON.stringify(postData),
             redirect: "follow",
-            signal: abortSignalTimeout(15000),
+            signal: timeoutSignal(15000),
         });
         const text = await resp.text();
         try {
@@ -232,4 +224,11 @@ export async function onRequest(context) {
     } catch (e) {
         return jsonResponse({code: 500, msg: "解析失败: " + (e && e.message ? e.message : "未知错误"), data: []});
     }
+}
+
+// ---------- 兼容性辅助：边缘函数运行时不支持 AbortSignal.timeout() ----------
+function timeoutSignal(ms) {
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), Number(ms) || 0);
+  return controller.signal;
 }

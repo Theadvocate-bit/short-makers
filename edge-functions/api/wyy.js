@@ -1,11 +1,3 @@
-
-// 边缘运行时不支持 AbortSignal.timeout，用受支持的 AbortController 实现超时
-function abortSignalTimeout(ms) {
-  const controller = new AbortController();
-  setTimeout(() => controller.abort(), ms);
-  return controller.signal;
-}
-
 /**
  * @Author: JH-Ahua
  * @CreateTime: 20250519
@@ -284,7 +276,7 @@ async function eapiPost(url, params, cookie) {
         headers: headers,
         body: body,
         redirect: "follow",
-        signal: abortSignalTimeout(30000),
+        signal: timeoutSignal(30000),
     });
     return await resp.text();
 }
@@ -297,7 +289,7 @@ async function resolveId(input) {
             const resp = await fetch(ids, {
                 method: "GET",
                 redirect: "manual",
-                signal: abortSignalTimeout(30000),
+                signal: timeoutSignal(30000),
             });
             ids = resp.headers.get("location") || "";
         } catch (e) {
@@ -378,7 +370,7 @@ async function nameV1(id) {
         headers: {"content-type": "application/x-www-form-urlencoded"},
         body: body,
         redirect: "follow",
-        signal: abortSignalTimeout(30000),
+        signal: timeoutSignal(30000),
     });
     return await resp.json();
 }
@@ -399,7 +391,7 @@ async function lyricV1(id, cookies) {
         headers: headers,
         body: body,
         redirect: "follow",
-        signal: abortSignalTimeout(30000),
+        signal: timeoutSignal(30000),
     });
     return await resp.json();
 }
@@ -542,4 +534,11 @@ export async function onRequest(context) {
         // Python 版异常 -> Flask 500；统一 JSON
         return jsonResponse({status: 500, msg: "解析失败: " + (e && e.message ? e.message : "未知错误")}, 500);
     }
+}
+
+// ---------- 兼容性辅助：边缘函数运行时不支持 AbortSignal.timeout() ----------
+function timeoutSignal(ms) {
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), Number(ms) || 0);
+  return controller.signal;
 }

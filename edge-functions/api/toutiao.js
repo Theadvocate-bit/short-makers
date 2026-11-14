@@ -1,11 +1,3 @@
-
-// 边缘运行时不支持 AbortSignal.timeout，用受支持的 AbortController 实现超时
-function abortSignalTimeout(ms) {
-  const controller = new AbortController();
-  setTimeout(() => controller.abort(), ms);
-  return controller.signal;
-}
-
 /**
  * @Author: JH-Ahua
  * @CreateTime: 2025/10/24 下午10:37
@@ -55,7 +47,7 @@ async function fetchText(url, headers = null, data = null) {
       headers: headers === null ? undefined : headers,
       body: data === null || data === undefined ? undefined : data,
       redirect: "follow",
-      signal: abortSignalTimeout(30000),
+      signal: timeoutSignal(30000),
     });
     return await resp.text();
   } catch (e) {
@@ -71,7 +63,7 @@ async function extractId(url) {
     const resp = await fetch(url, {
       method: "GET",
       redirect: "follow",
-      signal: abortSignalTimeout(30000),
+      signal: timeoutSignal(30000),
     });
     // 等价 PHP：Location 头数组 end() 或无重定向时的原 URL
     if (resp.url) {
@@ -225,4 +217,11 @@ export async function onRequest(context) {
       data: [],
     });
   }
+}
+
+// ---------- 兼容性辅助：边缘函数运行时不支持 AbortSignal.timeout() ----------
+function timeoutSignal(ms) {
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), Number(ms) || 0);
+  return controller.signal;
 }
