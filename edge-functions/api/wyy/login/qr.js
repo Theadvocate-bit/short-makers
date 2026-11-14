@@ -88,6 +88,7 @@ export async function onRequest(context) {
       msg: "ok",
       data: {
         unikey: json.unikey,
+        key: json.unikey, // 别名字段：兼容前端按 key 取值的历史约定
         qr_url: "https://music.163.com/login?codekey=" + json.unikey,
       },
     });

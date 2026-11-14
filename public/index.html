@@ -236,7 +236,7 @@ async function startQrLogin(platform) {
     const qrUrl = g.data.qr_url || g.data.scan_url;
     document.getElementById('qrImg').src = qrImgOf(qrUrl);
     showTip('请使用' + PLATFORM_NAMES[platform] + ' App 扫码并确认登录…');
-    const keyName = platform === 'weibo' ? 'qrid' : platform === 'wyy' ? 'key' : 'qrcode_key';
+    const keyName = platform === 'weibo' ? 'qrid' : platform === 'wyy' ? 'unikey' : 'qrcode_key';
     const pollUrl = { bili: '/api/bilibili/login/poll', weibo: '/api/weibo/login/poll', wyy: '/api/wyy/login/poll' }[platform];
     clearInterval(loginTimer);
     loginTimer = setInterval(async () => {
@@ -282,6 +282,25 @@ function renderPwdForm(platform) {
   showTip('');
 }
 
+/* ---- 网易云风控展示：-462/-460 时透传网易人机验证链接 ---- */
+function showWyyVerify(r) {
+  const d = (r.data && (r.data.data || r.data)) || {};
+  const url = d.verifyUrl || '';
+  const body = document.getElementById('modalBody');
+  const old = document.getElementById('wyyVerifyLink');
+  if (old) old.remove();
+  if (url) {
+    showTip('网易风控：需要先完成一次人机验证，完成后再点击重试（若验证无效请改用扫码登录）');
+    const p = document.createElement('p');
+    p.id = 'wyyVerifyLink';
+    p.className = 'note';
+    p.innerHTML = '<a href="' + url + '" target="_blank" rel="noopener">点此打开网易云验证页</a>，完成后重新点击上方按钮。';
+    body.appendChild(p);
+  } else {
+    showTip(r.msg + '（若持续出现，请改用扫码登录）');
+  }
+}
+
 async function weiboPwdLogin() {
   const username = document.getElementById('wbUser').value.trim();
   const password = document.getElementById('wbPass').value;
@@ -316,6 +335,8 @@ async function wyyPwdLogin() {
     })).json();
     if (r.code === 0) {
       loginSuccess('wyy', r.data.cookie, r.data.uid, r.data.nickname);
+    } else if (r.code === -462 || r.code === -460) {
+      showWyyVerify(r);
     } else { showTip(r.msg); }
   } catch (e) { showTip('登录失败：' + e.message); }
   btn.disabled = false;
@@ -325,12 +346,14 @@ async function wyyPwdLogin() {
 function renderSmsForm(platform) {
   const body = document.getElementById('modalBody');
   if (platform === 'bili') {
+    // 恢复上一次发送成功保存的登录令牌（防中途刷新页面丢失）
+    smsToken = localStorage.getItem('bili_sms_token') || '';
     body.innerHTML =
-      '<div class="field"><input id="smsPhone" placeholder="手机号（默认 +86）"></div>' +
+      '<div class="field"><input id="smsPhone" placeholder="手机号（默认 +86）" value="' + (localStorage.getItem('bili_sms_phone') || '') + '"></div>' +
       '<button class="btn" id="smsSendBtn" onclick="biliSmsSend()">发送短信验证码</button>' +
       '<div class="field" id="smsCodeField" style="display:none;"><input id="smsCode" placeholder="6 位短信验证码"></div>' +
       '<button class="btn" id="smsConfirmBtn" style="display:none;" onclick="biliSmsConfirm()">登录</button>' +
-      '<p class="note">如触发风控，将弹出B站滑块验证，请手动完成挑战。</p>';
+      '<p class="note">如触发风控，将弹出B站滑块验证，请手动完成挑战。发送验证码后请勿刷新页面。</p>';
   } else {
     body.innerHTML =
       '<div class="field"><input id="wyySmsPhone" placeholder="手机号（默认 +86）"></div>' +
@@ -427,10 +450,16 @@ async function biliSmsSend() {
       body: JSON.stringify(Object.assign({ cid: '86', tel: tel }, cap)),
     })).json();
     if (r.code === 0) {
-      smsToken = r.data.grecaptcha_token || '';
+      smsToken = r.data.grecaptcha_token || r.data.token || r.data.recaptcha_token || '';
+      localStorage.setItem('bili_sms_token', smsToken);
+      localStorage.setItem('bili_sms_phone', tel);
       document.getElementById('smsCodeField').style.display = 'block';
       document.getElementById('smsConfirmBtn').style.display = 'block';
-      showTip('✅ 验证码已发送，请查收短信');
+      if (smsToken) {
+        showTip('✅ 验证码已发送，请查收短信');
+      } else {
+        showTip('✅ 验证码已发送，但未获取到登录令牌，请勿刷新页面，直接输入验证码点击登录');
+      }
     } else {
       showTip(r.msg);
     }
@@ -442,6 +471,10 @@ async function biliSmsConfirm() {
   const tel = document.getElementById('smsPhone').value.trim();
   const code = document.getElementById('smsCode').value.trim();
   if (!code) { showTip('请输入短信验证码'); return; }
+  if (!smsToken) {
+    smsToken = localStorage.getItem('bili_sms_token') || '';
+    if (!smsToken) { showTip('登录令牌缺失，请点击"发送短信验证码"重新走一次流程'); return; }
+  }
   const btn = document.getElementById('smsConfirmBtn');
   btn.disabled = true;
   try {
@@ -451,6 +484,7 @@ async function biliSmsConfirm() {
       body: JSON.stringify({ cid: '86', tel: tel, code: code, grecaptcha_token: smsToken }),
     })).json();
     if (r.code === 0 && r.data.status === 'confirmed') {
+      localStorage.removeItem('bili_sms_token');
       loginSuccess('bili', r.data.cookie, r.data.uid, '');
     } else {
       showTip(r.msg);
@@ -474,6 +508,8 @@ async function wyySmsSend() {
       document.getElementById('wyySmsCodeField').style.display = 'block';
       document.getElementById('wyySmsConfirmBtn').style.display = 'block';
       showTip('✅ 验证码已发送，请查收短信');
+    } else if (r.code === -462 || r.code === -460) {
+      showWyyVerify(r);
     } else {
       showTip(r.msg);
     }
@@ -495,6 +531,8 @@ async function wyySmsConfirm() {
     })).json();
     if (r.code === 0) {
       loginSuccess('wyy', r.data.cookie, r.data.uid, r.data.nickname);
+    } else if (r.code === -462 || r.code === -460) {
+      showWyyVerify(r);
     } else {
       showTip(r.msg);
     }

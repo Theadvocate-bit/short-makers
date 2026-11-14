@@ -193,8 +193,16 @@ function randomHex(len) {
 
 // weapi POST：发送到指定 /weapi/ 端点并收集 Set-Cookie
 // extraCookie 可为 null（自动使用浏览器级匿名 Cookie 罐）
+// 网易 weapi 请求要求 payload 内含 csrf_token（可为空串），并建议带时间戳防缓存
 export async function weapiPost(url, params, extraCookie) {
-  const enc = await weapiEncrypt(params);
+  const payload = Object.assign({}, params);
+  if (payload.csrf_token === undefined) {
+    payload.csrf_token = "";
+  }
+  if (payload.timestamp === undefined) {
+    payload.timestamp = Date.now();
+  }
+  const enc = await weapiEncrypt(payload);
   const cookie =
     extraCookie ||
     "os=pc; appver=2.9.7; NMTID=00O" + randomHex(14) + "UIZmZITJzAB; WEVNSM=1.0.0; _ntes_nuid=" + randomHex(32);

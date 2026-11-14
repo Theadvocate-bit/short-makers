@@ -90,12 +90,14 @@ export async function onRequest(context) {
       });
     }
     const data = json.data || {};
-    const grecaptchaToken = data.grecaptcha_token || data.recaptcha_token || "";
+    const grecaptchaToken = data.grecaptcha_token || data.recaptcha_token || data.token || "";
     return jsonResponse({
       code: 0,
       msg: "验证码已发送，请查收短信",
       data: {
         grecaptcha_token: grecaptchaToken,
+        token: grecaptchaToken, // 别名字段：兼容不同命名的读取方
+        recaptcha_token: grecaptchaToken,
         recaptcha_url: data.recaptcha_url || "",
       },
     });
