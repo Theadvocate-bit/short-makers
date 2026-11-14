@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>short-makers · 短视频解析 API</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    background:#0f1117;color:#e4e6ef;line-height:1.6;padding:2.5rem 1.5rem 4rem}
+  .wrap{max-width:760px;margin:0 auto}
+  h1{font-size:1.6rem;margin-bottom:.4rem;
+    background:linear-gradient(135deg,#6366f1,#818cf8);-webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;background-clip:text}
+  .sub{color:#9ca3af;font-size:.9rem;margin-bottom:2rem}
+  h2{font-size:1rem;color:#a5b4fc;margin:1.6rem 0 .6rem}
+  code,.code{background:#1a1d27;border:1px solid #2e3345;border-radius:.4rem;
+    padding:.15rem .45rem;font-size:.85rem;word-break:break-all}
+  .ep{background:#1a1d27;border:1px solid #2e3345;border-radius:.6rem;
+    padding:1rem 1.2rem;margin-bottom:.8rem}
+  .ep .m{color:#34d399;font-weight:600;font-size:.85rem}
+  .ep .p{color:#e4e6ef;font-family:monospace;font-size:.9rem;margin:.3rem 0}
+  .ep .d{color:#9ca3af;font-size:.85rem}
+  table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:.5rem}
+  th,td{text-align:left;padding:.5rem;border-bottom:1px solid #2e3345}
+  th{color:#9ca3af;font-weight:500}
+  .ok{color:#34d399}.todo{color:#fbbf24}
+  a{color:#818cf8;text-decoration:none}
+  footer{margin-top:2.5rem;color:#6b7280;font-size:.8rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>short-makers</h1>
+  <p class="sub">短视频聚合解析 API · 移植自 short_videos · 部署于 EdgeOne Makers</p>
+
+  <h2>接口</h2>
+  <div class="ep">
+    <span class="m">GET</span>
+    <div class="p">/api/parse?url=&lt;视频链接&gt;</div>
+    <div class="d">自动识别平台并解析，返回统一 JSON。</div>
+  </div>
+  <div class="ep">
+    <span class="m">GET</span>
+    <div class="p">/proxy?proxyurl=&lt;媒体直链&gt;&amp;type=douyin</div>
+    <div class="d">媒体直链代理，解决抖音/微博 403 防盗链（服务端带 Referer 拉取、跟随 302、流式转发）。</div>
+  </div>
+
+  <h2>示例</h2>
+  <div class="code">curl "https://a.didyou.lovie.me/api/parse?url=https://www.bilibili.com/video/BV1eXWM6GE6x/"</div>
+
+  <h2>平台移植状态</h2>
+  <table>
+    <tr><th>平台</th><th>状态</th></tr>
+    <tr><td>bilibili</td><td class="ok">✅ 已移植</td></tr>
+    <tr><td>douyin / kuaishou / xiaohongshu / weibo / toutiao</td><td class="todo">⏳ 待移植</td></tr>
+    <tr><td>pipixia / pipigx / zuiyou / 网易云</td><td class="todo">⏳ 待移植</td></tr>
+    <tr><td>媒体直链代理</td><td class="ok">✅ 已移植</td></tr>
+  </table>
+  <p class="sub" style="margin-top:.6rem">待移植平台调用会返回 <code>code:-2</code> 明确提示。</p>
+
+  <footer>
+    移植自 <a href="https://github.com/Theadvocate-bit/short_videos" target="_blank">short_videos</a>
+    · <a href="https://github.com/Theadvocate-bit/short-makers" target="_blank">GitHub</a>
+  </footer>
+</div>
+</body>
+</html>
