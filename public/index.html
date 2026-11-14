@@ -30,6 +30,15 @@
   .status-ok { color: var(--ok); font-weight: 600; }
   .note { color: var(--muted); font-size: 12.5px; margin-top: 10px; }
   a { color: var(--accent); text-decoration: none; }
+  /* 登录区块 */
+  .login-box h2 { margin-bottom: 10px; }
+  .login-hint { font-size: 13px; color: var(--muted); font-weight: normal; }
+  .login-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .plat-name { font-weight: 600; min-width: 72px; }
+  .login-status { font-size: 13px; color: var(--muted); min-width: 90px; }
+  .login-status.ok { color: var(--ok); }
+  .login-row button { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 6px 16px; font-size: 13px; cursor: pointer; }
+  .login-row button:disabled { opacity: .6; cursor: wait; }
 </style>
 </head>
 <body>
@@ -38,6 +47,20 @@
     <h1>短视频去水印解析接口</h1>
     <p class="subtitle">多平台短视频解析 · 无水印直链 · 部署于 EdgeOne Makers</p>
   </header>
+
+  <div class="card login-box">
+    <h2>账号登录 <span class="login-hint">（可选 · 登录后部分平台可获取更高清晰度）</span></h2>
+    <div class="login-row">
+      <span class="plat-name">哔哩哔哩</span>
+      <span id="bili-status" class="login-status">未登录</span>
+      <button id="bili-login-btn" onclick="biliLogin()">扫码登录</button>
+      <button id="bili-logout-btn" onclick="biliLogout()" style="display:none;">退出</button>
+    </div>
+    <div id="bili-qr-area" style="display:none;margin-top:14px;">
+      <img id="bili-qr-img" alt="扫码登录二维码" style="width:180px;height:180px;border:1px solid var(--border);border-radius:8px;">
+      <p id="bili-qr-tip" class="note">请用哔哩哔哩 App 扫码登录</p>
+    </div>
+  </div>
 
   <div class="card test-box">
     <h2>在线测试</h2>
@@ -82,7 +105,9 @@ GET /api/proxy?proxyurl=（直链 403 时代理转发；支持 type=douyin|weibo
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 <script>
+// ===== 在线测试 =====
 async function doParse() {
   const input = document.getElementById('input').value.trim();
   const btn = document.getElementById('btn');
@@ -93,7 +118,15 @@ async function doParse() {
   box.style.display = 'block';
   out.textContent = '正在请求边缘函数...';
   try {
-    const resp = await fetch('/api/sv?url=' + encodeURIComponent(input));
+    let url;
+    // B站链接且已登录：直接走 bilibili 接口并带上 cookie（可拿更高清晰度）
+    if (/bilibili\.com|b23\.tv/i.test(input)) {
+      const ck = localStorage.getItem('bili_cookie');
+      url = '/api/bilibili?url=' + encodeURIComponent(input) + (ck ? '&cookie=' + encodeURIComponent(ck) : '');
+    } else {
+      url = '/api/sv?url=' + encodeURIComponent(input);
+    }
+    const resp = await fetch(url);
     const json = await resp.json();
     out.textContent = JSON.stringify(json, null, 2);
   } catch (e) {
@@ -101,6 +134,75 @@ async function doParse() {
   }
   btn.disabled = false; btn.textContent = '解析';
 }
+
+// ===== 哔哩哔哩 扫码登录 =====
+let biliPollTimer = null;
+function setBiliStatus(text, ok) {
+  const el = document.getElementById('bili-status');
+  el.textContent = text;
+  el.className = 'login-status' + (ok ? ' ok' : '');
+}
+function updateBiliUI() {
+  const logged = !!localStorage.getItem('bili_cookie');
+  document.getElementById('bili-login-btn').style.display = logged ? 'none' : '';
+  document.getElementById('bili-logout-btn').style.display = logged ? '' : 'none';
+  setBiliStatus(logged ? '已登录' : '未登录', logged);
+}
+function biliLogout() {
+  localStorage.removeItem('bili_cookie');
+  stopBiliPoll();
+  document.getElementById('bili-qr-area').style.display = 'none';
+  updateBiliUI();
+}
+function stopBiliPoll() {
+  if (biliPollTimer) { clearInterval(biliPollTimer); biliPollTimer = null; }
+}
+async function biliLogin() {
+  const btn = document.getElementById('bili-login-btn');
+  btn.disabled = true; btn.textContent = '获取二维码...';
+  try {
+    const resp = await fetch('/api/bilibili?login=gen');
+    const gen = await resp.json();
+    if (gen.code !== 0 || !gen.url) { alert('获取二维码失败：' + (gen.msg || '未知错误')); return; }
+    // 渲染二维码
+    const dataUrl = await QRCode.toDataURL(gen.url, { width: 200, margin: 1 });
+    document.getElementById('bili-qr-img').src = dataUrl;
+    document.getElementById('bili-qr-area').style.display = 'block';
+    setBiliStatus('等待扫码', false);
+    document.getElementById('bili-qr-tip').textContent = '请用哔哩哔哩 App 扫码登录';
+    // 轮询登录状态
+    const key = gen.qrcode_key;
+    stopBiliPoll();
+    biliPollTimer = setInterval(async () => {
+      try {
+        const pr = await fetch('/api/bilibili?login=poll&qrcode_key=' + encodeURIComponent(key));
+        const poll = await pr.json();
+        if (poll.code === 0 && poll.cookie) {
+          // 登录成功，存 cookie
+          localStorage.setItem('bili_cookie', poll.cookie);
+          stopBiliPoll();
+          document.getElementById('bili-qr-area').style.display = 'none';
+          updateBiliUI();
+        } else if (poll.code === 1) {
+          setBiliStatus('已扫码，请在手机确认', false);
+        } else if (poll.code === -1) {
+          // 二维码失效
+          stopBiliPoll();
+          setBiliStatus('二维码已失效', false);
+          document.getElementById('bili-qr-tip').textContent = '二维码已失效，请重新点击「扫码登录」';
+          document.getElementById('bili-qr-img').src = '';
+        }
+        // code 2 = 等待扫码，继续轮询
+      } catch (e) { /* 网络错误，继续轮询 */ }
+    }, 2000);
+  } catch (e) {
+    alert('登录出错：' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '扫码登录';
+  }
+}
+// 页面加载时恢复登录状态
+updateBiliUI();
 </script>
 </body>
 </html>
