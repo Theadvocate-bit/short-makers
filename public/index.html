@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>短视频去水印解析接口 · EdgeOne Makers 版</title>
+<title>短视频去水印解析接口</title>
 <link rel="icon" href="/img/icon.png">
 <style>
   :root {
@@ -13,91 +13,73 @@
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; }
-  .container { max-width: 960px; margin: 0 auto; padding: 24px 16px 64px; }
-  header { text-align: center; padding: 40px 0 24px; }
-  header img { width: 84px; height: 84px; border-radius: 20px; }
-  h1 { font-size: 28px; margin: 16px 0 8px; }
-  .subtitle { color: var(--muted); font-size: 15px; }
-  .badges { margin-top: 12px; }
-  .badge { display: inline-block; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 3px 12px; font-size: 13px; margin: 3px; }
-  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-top: 24px; }
-  h2 { font-size: 19px; margin-bottom: 14px; }
-  .test-box textarea { width: 100%; height: 88px; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 14px; resize: vertical; font-family: inherit; }
-  .test-box button { margin-top: 12px; background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 10px 28px; font-size: 15px; cursor: pointer; }
+  .container { max-width: 920px; margin: 0 auto; padding: 24px 16px 48px; }
+  header { padding: 28px 0 8px; }
+  h1 { font-size: 24px; }
+  .subtitle { color: var(--muted); font-size: 14px; margin-top: 4px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; margin-top: 20px; }
+  h2 { font-size: 17px; margin-bottom: 12px; }
+  .test-box textarea { width: 100%; height: 80px; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 14px; resize: vertical; font-family: inherit; }
+  .test-box button { margin-top: 10px; background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 9px 26px; font-size: 15px; cursor: pointer; }
   .test-box button:disabled { opacity: .6; cursor: wait; }
-  pre { background: #f6f8fa; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-size: 12.5px; overflow: auto; max-height: 420px; white-space: pre-wrap; word-break: break-all; }
-  table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  th, td { border-bottom: 1px solid var(--border); padding: 9px 10px; text-align: left; vertical-align: top; }
+  pre { background: #f6f8fa; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-size: 12.5px; overflow: auto; max-height: 380px; white-space: pre-wrap; word-break: break-all; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { border-bottom: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
   th { color: var(--muted); font-weight: 600; white-space: nowrap; }
-  td code, p code { background: var(--accent-soft); color: var(--accent); border-radius: 4px; padding: 1px 6px; font-size: 13px; font-family: Consolas, Menlo, monospace; }
+  td code, p code { background: var(--accent-soft); color: var(--accent); border-radius: 4px; padding: 1px 6px; font-size: 12.5px; font-family: Consolas, Menlo, monospace; }
   .status-ok { color: var(--ok); font-weight: 600; }
-  .cookie-need { color: var(--warn); font-size: 12px; }
-  .note { color: var(--muted); font-size: 13px; margin-top: 10px; }
-  footer { text-align: center; color: var(--muted); font-size: 13px; margin-top: 40px; }
+  .note { color: var(--muted); font-size: 12.5px; margin-top: 10px; }
   a { color: var(--accent); text-decoration: none; }
 </style>
 </head>
 <body>
 <div class="container">
   <header>
-    <img src="/img/icon.png" alt="logo">
     <h1>短视频去水印解析接口</h1>
-    <p class="subtitle">多平台短视频解析 · 免 Cookie · 无水印直链 · 视频开箱即用</p>
-    <div class="badges">
-      <span class="badge">EdgeOne Makers</span>
-      <span class="badge">边缘函数</span>
-      <span class="badge">免 Cookie</span>
-      <span class="badge">无水印直链</span>
-    </div>
+    <p class="subtitle">多平台短视频解析 · 无水印直链 · 部署于 EdgeOne Makers</p>
   </header>
 
   <div class="card test-box">
-    <h2>🚀 在线测试（聚合入口 /api/sv）</h2>
+    <h2>在线测试</h2>
     <textarea id="input" placeholder="粘贴任意含分享链接的文本，例如：
 7.05 Kfx:/ 复制打开抖音，看看... https://v.douyin.com/xxxx/"></textarea>
     <button id="btn" onclick="doParse()">解析</button>
     <div id="result" style="margin-top:14px;display:none;"><pre id="output"></pre></div>
-    <p class="note">支持抖音 / 快手 / 小红书 / 哔哩哔哩 / 微博 / 今日头条 / 皮皮虾 / 皮皮搞笑 / 最右，自动识别平台。</p>
+    <p class="note">粘贴链接后自动识别平台（抖音/快手/小红书/哔哩哔哩/微博/今日头条/皮皮虾/皮皮搞笑/最右等），走聚合入口 /api/sv。</p>
   </div>
 
   <div class="card">
-    <h2>📋 支持平台与接口</h2>
+    <h2>支持平台与接口</h2>
     <table>
-      <tr><th>平台</th><th>接口</th><th>功能</th><th>登录</th><th>状态</th></tr>
-      <tr><td>抖音 视频/图集/实况</td><td><code>/api/douyin?url=</code></td><td>原画直链、图集原图、实况 Live Photo、背景音乐、多档备选直链</td><td>免登录</td><td class="status-ok">✅</td></tr>
-      <tr><td>抖音主页 批量解析</td><td><code>/api/douyin/home?url=</code></td><td>主页作品批量列表（feed 接口）</td><td class="cookie-need">需环境变量 DOUYIN_HOME_COOKIE</td><td class="status-ok">✅</td></tr>
-      <tr><td>快手</td><td><code>/api/kuaishou?url=</code></td><td>视频/图片直链、封面、作者信息</td><td>免登录</td><td class="status-ok">✅</td></tr>
-      <tr><td>小红书</td><td><code>/api/xiaohongshu?url=</code></td><td>视频去水印、图集原图、实况</td><td>免登录</td><td class="status-ok">✅</td></tr>
-      <tr><td>哔哩哔哩</td><td><code>/api/bilibili?url=</code></td><td>视频直链、分P 列表、时长、封面（<code>&ver=old</code> 走旧版）</td><td>免登录</td><td class="status-ok">✅</td></tr>
-      <tr><td>微博（接口版）</td><td><code>/api/weibo?url=</code></td><td>多画质、备选直链、互动数据、封面</td><td>免登录</td><td class="status-ok">✅</td></tr>
-      <tr><td>微博（爬虫版）</td><td><code>/api/weibo_v?url=</code></td><td>视频直链、封面</td><td>免登录</td><td class="status-ok">✅</td></tr>
-      <tr><td>今日头条</td><td><code>/api/toutiao?url=</code></td><td>视频去水印、背景音乐、封面</td><td>免登录</td><td class="status-ok">✅</td></tr>
-      <tr><td>皮皮搞笑</td><td><code>/api/pipigx?url=</code></td><td>视频去水印、封面</td><td>免登录</td><td class="status-ok">✅</td></tr>
-      <tr><td>皮皮虾</td><td><code>/api/ppxia?url=</code></td><td>视频去水印、图集图片、封面、作者</td><td>免登录</td><td class="status-ok">✅</td></tr>
-      <tr><td>最右</td><td><code>/api/zuiyou?url=</code></td><td>视频去水印、封面、作者信息</td><td>免登录</td><td class="status-ok">✅</td></tr>
-      <tr><td>网易云音乐</td><td><code>/api/wyy?url=</code></td><td>歌曲直链 + 歌词（原 Python 版移植）</td><td>免登录</td><td class="status-ok">✅</td></tr>
-      <tr><td>豆包 AI 视频</td><td><code>/api/doubao/video?url=</code></td><td>AI 生成视频无水印直链</td><td>免登录</td><td class="status-ok">✅</td></tr>
-      <tr><td>豆包 对话分享</td><td><code>/api/doubao/duihua?url=</code></td><td>对话分享图片/视频直链</td><td>免登录</td><td class="status-ok">✅</td></tr>
-      <tr><td>即梦 AI 视频</td><td><code>/api/jimengai?url=</code></td><td>AI 生成视频无水印直链</td><td>免登录</td><td class="status-ok">✅</td></tr>
-      <tr><td>聚合解析</td><td><code>/api/sv?url=</code></td><td>自动识别平台，转发到对应解析器</td><td>免登录</td><td class="status-ok">✅</td></tr>
-      <tr><td>媒体防盗链代理</td><td><code>/api/proxy?proxyurl=</code></td><td>解决抖音/微博直链 403，支持下载</td><td>—</td><td class="status-ok">✅</td></tr>
+      <tr><th>平台</th><th>接口</th><th>登录</th><th>状态</th></tr>
+      <tr><td>抖音（视频/图集/实况）</td><td><code>/api/douyin?url=</code></td><td>免登录</td><td class="status-ok">✅</td></tr>
+      <tr><td>抖音主页批量</td><td><code>/api/douyin/home?url=</code></td><td>需 DOUYIN_HOME_COOKIE</td><td class="status-ok">✅</td></tr>
+      <tr><td>快手</td><td><code>/api/kuaishou?url=</code></td><td>免登录</td><td class="status-ok">✅</td></tr>
+      <tr><td>小红书</td><td><code>/api/xiaohongshu?url=</code></td><td>免登录</td><td class="status-ok">✅</td></tr>
+      <tr><td>哔哩哔哩</td><td><code>/api/bilibili?url=</code></td><td>免登录（可选 cookie 提清晰度）</td><td class="status-ok">✅</td></tr>
+      <tr><td>微博（接口版）</td><td><code>/api/weibo?url=</code></td><td>建议登录</td><td class="status-ok">✅</td></tr>
+      <tr><td>微博（爬虫版）</td><td><code>/api/weibo_v?url=</code></td><td>免登录</td><td class="status-ok">✅</td></tr>
+      <tr><td>今日头条</td><td><code>/api/toutiao?url=</code></td><td>免登录</td><td class="status-ok">✅</td></tr>
+      <tr><td>皮皮搞笑</td><td><code>/api/pipigx?url=</code></td><td>免登录</td><td class="status-ok">✅</td></tr>
+      <tr><td>皮皮虾</td><td><code>/api/ppxia?url=</code></td><td>免登录</td><td class="status-ok">✅</td></tr>
+      <tr><td>最右</td><td><code>/api/zuiyou?url=</code></td><td>免登录</td><td class="status-ok">✅</td></tr>
+      <tr><td>网易云音乐</td><td><code>/api/wyy?url=&level=&type=</code></td><td>建议登录</td><td class="status-ok">✅</td></tr>
+      <tr><td>豆包 AI 视频</td><td><code>/api/doubao/video?url=</code></td><td>免登录</td><td class="status-ok">✅</td></tr>
+      <tr><td>豆包 对话分享</td><td><code>/api/doubao/duihua?url=</code></td><td>免登录</td><td class="status-ok">✅</td></tr>
+      <tr><td>即梦 AI 视频</td><td><code>/api/jimengai?url=</code></td><td>免登录</td><td class="status-ok">✅</td></tr>
+      <tr><td>聚合解析</td><td><code>/api/sv?url=</code></td><td>免登录</td><td class="status-ok">✅</td></tr>
+      <tr><td>媒体防盗链代理</td><td><code>/api/proxy?proxyurl=</code></td><td>—</td><td class="status-ok">✅</td></tr>
     </table>
-    <p class="note">所有接口返回统一 JSON 结构 <code>{code, msg, data}</code>，字段说明见项目 <code>docs/视频解析统一JSON格式3.0.md</code>。</p>
+    <p class="note">所有接口返回统一 JSON <code>{code, msg, data}</code>，支持 GET / POST，开放 CORS。</p>
   </div>
 
   <div class="card">
-    <h2>📖 使用示例</h2>
+    <h2>使用示例</h2>
     <pre>GET /api/sv?url=https://v.douyin.com/xxxx/
 GET /api/douyin?url=（整段分享文本均可，自动提取链接）
-GET /api/bilibili?url=https://b23.tv/xxxx&ver=old
-GET /api/proxy?proxyurl=（视频直链，403 时用于代理转发；支持 type=douyin|weibo、download=true）</pre>
-    <p class="note">接口均支持 GET / POST（form 或 JSON body 中的 url 字段），并开放 CORS，可直接在前端调用。</p>
+GET /api/bilibili?url=https://b23.tv/xxxx
+GET /api/proxy?proxyurl=（直链 403 时代理转发；支持 type=douyin|weibo、download=true）</pre>
   </div>
-
-  <footer>
-    <p>本工具仅用于学习交流与技术测试，素材版权归原平台及权利人所有，不得用于任何非法用途。</p>
-    <p>基于开源项目 <a href="https://github.com/jiuhunwl/short_videos" target="_blank">short_videos</a> 改造 · MIT License · 部署于 Tencent EdgeOne Makers</p>
-  </footer>
 </div>
 
 <script>
