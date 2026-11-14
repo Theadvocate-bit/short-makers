@@ -18,6 +18,13 @@
  */
 
 import { detectPlatform, IMPLEMENTED, PLATFORMS } from '../_lib/platforms.js';
+// 静态 import（不用动态 import）：Makers 打包器对 [[default]].js 里的动态 import
+// 可能构建失败，导致整个部署挂掉（静态+函数全 404）。已移植的平台在这里静态引入。
+import { parse as parseBilibili } from '../_lib/parsers/bilibili.js';
+
+const PARSERS = {
+  bilibili: parseBilibili,
+};
 
 const JSON_HEADERS = {
   'Content-Type': 'application/json; charset=utf-8',
@@ -28,14 +35,9 @@ function jsonOut(payload, status = 200) {
   return new Response(JSON.stringify(payload), { status, headers: JSON_HEADERS });
 }
 
-/** 动态加载对应平台的解析器（避免一次性 import 全部） */
-async function loadParser(platformKey) {
-  switch (platformKey) {
-    case 'bilibili':
-      return (await import('../_lib/parsers/bilibili.js')).parse;
-    default:
-      return null;
-  }
+/** 查找对应平台的解析器（静态映射，已移植平台在文件顶部 import） */
+function loadParser(platformKey) {
+  return PARSERS[platformKey] || null;
 }
 
 /** EdgeOne Makers 入口 */
