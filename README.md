@@ -1,115 +1,120 @@
-# short-makers
-
-把 [Theadvocate-bit/short_videos](https://github.com/Theadvocate-bit/short_videos)（短视频聚合解析，原项目 `jiuhunwl/short_videos`）改造到 **EdgeOne Makers** 上部署落地。
-
-原项目是 **纯 PHP**（PHP 8.0+ + curl/json + Apache/Nginx），而 EdgeOne Makers **没有 PHP 运行时**。
-本仓库把它的解析逻辑移植到 Makers 支持的运行时（Edge Function / Node.js），做成无服务器 API。
-
-> 原项目、解析逻辑、统一 JSON 格式全部来自 [Theadvocate-bit/short_videos](https://github.com/Theadvocate-bit/short_videos)（MIT），
-> 本仓库只做 serverless 化移植。
+<div align="center">
+  <img width="100px" alt="logo" src="public/img/icon.png"/>
+  <h1>短视频去水印解析接口 · EdgeOne Makers 版</h1>
+  <p><em>多平台短视频解析 · 免 Cookie · 无水印直链 · 边缘函数部署</em></p>
+</div>
 
 ---
 
-## 架构
+## 🎯 项目简介
 
-| | 原项目 (short_videos) | 本仓库 (short-makers) |
-|---|---|---|
-| 运行时 | PHP 8.0+（常驻，Apache/Nginx） | EdgeOne Makers Edge Function（Node.js） |
-| 聚合调度 | `api/sv.php`（关键词识别平台） | `/api/parse`（同款关键词识别） |
-| 各平台解析 | `api/**/*.php` | `cloud-functions/_lib/parsers/*.js` |
-| 媒体直链代理 | `cf_sv_proxy/worker.js`（CF Worker） | `/proxy`（移植为 Edge Function） |
-| 网易云音乐 | `api/wyy.py`（Python） | 待移植 |
+本项目是 [jiuhunwl/short_videos](https://github.com/jiuhunwl/short_videos)（PHP 版短视频去水印解析接口）的 **EdgeOne Makers 改造版**：
 
-## 目录结构
+- 原 PHP 接口全部移植为 **EdgeOne 边缘函数**（`edge-functions/` 目录，文件即路由），部署在腾讯 EdgeOne 全球 3200+ 边缘节点上
+- 抖音解析复用项目自带的 Cloudflare Workers 版逻辑（与边缘函数运行时语法兼容），其余平台由 PHP 逐一移植为 JavaScript
+- `api/sv.php` 聚合入口从「HTTP 自转发」改为「模块 import 直接调用」，省去一次回环请求
+- `wyy.py`（Python/Flask 版网易云解析）移植为边缘函数（AES-128 + MD5 以纯 JS 实现，兼容 Web Crypto 运行时）
+- 新增静态首页（`public/`）：平台列表、接口文档、在线解析测试
+
+> ⚠️ 原项目重要声明继续适用：本项目仅用于学习交流与技术测试，解析素材的版权归原平台及权利人所有，不得用于任何非法用途。
+
+## 📂 项目结构
 
 ```
-short-makers/
-├── cloud-functions/
-│   ├── parse/[[default]].js        # /api/parse  聚合调度（平台识别 + 分发）
-│   ├── proxy/[[default]].js        # /proxy      媒体直链代理（解决 403 防盗链）
-│   └── _lib/
-│       ├── platforms.js            # 平台关键词表 + 识别
-│       └── parsers/
-│           └── bilibili.js         # Bilibili 解析器（已移植）
-├── edgeone.json
+short_videos-edgeone/
+├── public/                        # 静态站点（Makers 构建输出目录）
+│   ├── index.html                 #   首页：平台列表 + 在线测试 + 接口文档
+│   └── img/                       #   图片资源（来自原项目）
+├── edge-functions/                # 边缘函数（文件即路由）
+│   └── api/
+│       ├── sv.js                  #   聚合解析 /api/sv
+│       ├── douyin.js              #   抖音 /api/douyin（视频/图集/实况，原画直链）
+│       ├── douyin/home.js         #   抖音主页批量 /api/douyin/home（需 Cookie）
+│       ├── kuaishou.js            #   快手 /api/kuaishou
+│       ├── xiaohongshu.js         #   小红书 /api/xiaohongshu
+│       ├── bilibili.js            #   哔哩哔哩 /api/bilibili（?ver=old 走旧版）
+│       ├── weibo.js               #   微博·接口版 /api/weibo
+│       ├── weibo_v.js             #   微博·爬虫版 /api/weibo_v
+│       ├── toutiao.js             #   今日头条 /api/toutiao
+│       ├── ppxia.js               #   皮皮虾 /api/ppxia
+│       ├── pipigx.js              #   皮皮搞笑 /api/pipigx
+│       ├── zuiyou.js              #   最右 /api/zuiyou
+│       ├── wyy.js                 #   网易云音乐 /api/wyy（原 Python 版）
+│       ├── doubao/video.js        #   豆包 AI 视频 /api/doubao/video
+│       ├── doubao/duihua.js       #   豆包对话分享 /api/doubao/duihua
+│       ├── jimengai.js            #   即梦 AI 视频 /api/jimengai
+│       ├── proxy.js               #   媒体防盗链代理 /api/proxy
+│       └── PORTING_CONVENTIONS.md #   移植统一约定（内部文档）
+├── docs/                          # 原 JSON 格式文档
 ├── package.json
 └── README.md
 ```
 
----
+## 🚀 部署到 EdgeOne Makers
 
-## 接口
+### 方式一：控制台直接上传（最快）
 
-### `GET /api/parse?url=<视频链接>`
+1. 登录 [EdgeOne Makers 控制台](https://edgeone.ai/zh/document/70404)，选择 **创建项目 → 直接上传**
+2. 上传本项目压缩包（或先推到 Git 再导入）
+3. 构建配置：**无需构建命令**，构建输出目录填 `public`（`edge-functions/` 会被平台自动识别并部署）
+4. 部署完成后即可通过分配的域名访问，可再绑定自定义域名
 
-自动识别平台并解析，返回统一 JSON（见原项目 `docs/视频解析统一JSON格式3.0.md`）。
+### 方式二：Git 仓库导入（推荐，支持自动部署）
 
-```bash
-curl "https://<你的域名>/api/parse?url=https://www.bilibili.com/video/BVxxxx"
-```
+1. 将本项目推送到 GitHub / Gitee
+2. Makers 控制台选择 **导入 Git 仓库** → 关联仓库
+3. 构建输出目录填 `public`
+4. 此后每次 push 自动触发部署
 
-### `GET /proxy?proxyurl=<媒体直链>&type=douyin&download=true`
-
-媒体直链代理：服务端带正确 Referer/UA 拉直链、手动跟随 302、流式转发，解决抖音/微博 403 防盗链。
-
-```bash
-curl "https://<你的域名>/proxy?proxyurl=<直链>&type=douyin"
-```
-
----
-
-## 移植状态（诚实标注）
-
-| 平台 | 状态 | 备注 |
-|---|---|---|
-| bilibili | ✅ 已移植可用 | 需 `BILIBILI_COOKIE` 环境变量（不填基础解析仍可用，1080P+ 需要） |
-| douyin | ⏳ 待移植 | 原 `DouyinParser.php` 924 行，含复杂签名，工作量最大 |
-| kuaishou | ⏳ 待移植 | 原 `KuaishouSpider.php` 333 行 |
-| xiaohongshu | ⏳ 待移植 | 原 `XiaohongshuParser.php` 476 行 |
-| weibo | ⏳ 待移植 | 原 `weibo.php` 283 行 |
-| toutiao | ⏳ 待移植 | 原 `toutiao.php` 152 行 |
-| pipixia / pipigx / zuiyou | ⏳ 待移植 | 单文件 PHP |
-| 网易云音乐 | ⏳ 待移植 | 原 `api/wyy.py`（Python），可移植为 Python 云函数或 Node |
-| 媒体直链代理 | ✅ 已移植可用 | 移植自 `cf_sv_proxy/worker.js` |
-
-识别出「待移植」平台时，`/api/parse` 会返回明确的 `code:-2` 提示，而不是假装解析。
-
-**如何新增一个平台**：
-1. 参考 `cloud-functions/_lib/parsers/bilibili.js`，把对应 PHP 解析器移植成 `parsers/<平台>.js`，导出 `parse(url, env)`。
-2. 在 `_lib/platforms.js` 的 `IMPLEMENTED` 集合里加上平台 key。
-3. `parse/[[default]].js` 会自动调度到它。
-
----
-
-## 环境变量
-
-| 变量 | 用途 |
-|---|---|
-| `BILIBILI_COOKIE` | B站 Cookie（格式 `_uuid=XXXXX`），不填解析不到 1080P 以上 |
-
----
-
-## 部署
-
-1. 登录 [EdgeOne Makers 控制台](https://console.tencentcloud.com/edgeone/makers)。
-2. 新建项目 → 从 Git 仓库导入 → 选本仓库。
-3. 构建配置保持默认（`cloud-functions/` 自动识别函数）。
-4. 部署完成后访问 `https://<域名>/api/parse?url=<链接>`。
-
-CLI：`npm i -g edgeone && edgeone login && edgeone pages deploy`
-
----
-
-## 本地开发
+### 方式三：CLI 部署
 
 ```bash
-npm test          # 自测（平台识别、Bilibili 解析器、调度路由）
+npm install -g edgeone@latest
+edgeone login
+edgeone pages deploy   # 或本地调试：edgeone pages dev
 ```
 
----
+### 环境变量
 
-## 许可与致谢
+| 变量 | 必需 | 说明 |
+|------|:---:|------|
+| `DOUYIN_HOME_COOKIE` | 仅 /api/douyin/home 需要 | 抖音登录 Cookie，用于主页批量解析；其余接口均免 Cookie |
 
-- 解析逻辑、统一 JSON 格式来自 [Theadvocate-bit/short_videos](https://github.com/Theadvocate-bit/short_videos)（MIT），版权归上游作者。
-- 本仓库仅做 EdgeOne Makers 的 serverless 移植。
-- 各平台数据与播放源版权归对应平台，仅供学习研究，请勿用于商业用途。
+## 📖 接口速查
+
+所有接口统一返回 `{code, msg, data}` JSON，入参支持 `GET ?url=` 或 `POST`（form/JSON body 的 `url` 字段），支持整段分享文本，开放 CORS。
+
+| 路由 | 对应原 PHP 接口 |
+|------|----------------|
+| `/api/sv?url=` | `api/sv.php` |
+| `/api/douyin?url=` | `api/douyin/douyin.php` |
+| `/api/douyin/home?url=` | `api/douyin-home/home.php` |
+| `/api/kuaishou?url=` | `api/kuaishou/ksjx.php` |
+| `/api/xiaohongshu?url=` | `api/xiaohongshu/xhsjx.php` |
+| `/api/bilibili?url=` | `api/bilibili/bilibili.php`（`&ver=old` 旧版） |
+| `/api/weibo?url=` | `api/weibo.php` |
+| `/api/weibo_v?url=` | `api/weibo_v.php` |
+| `/api/toutiao?url=` | `api/toutiao.php` |
+| `/api/ppxia?url=` | `api/ppxia.php` |
+| `/api/pipigx?url=` | `api/pipigx.php` |
+| `/api/zuiyou?url=` | `api/zuiyou.php` |
+| `/api/wyy?url=` | `api/wyy.py` |
+| `/api/doubao/video?url=` | `api/doubao/video/api.php` |
+| `/api/doubao/duihua?url=` | `api/doubao/duihua/duihua.php` |
+| `/api/jimengai?url=` | `api/jimengai/index.php` |
+| `/api/proxy?proxyurl=` | `cf_sv_proxy/worker.js`（原 `api/svproxyurl.php`） |
+
+> 视频直链 403 防盗链时，用 `/api/proxy?proxyurl=<直链>` 代理转发，支持 `type=douyin|weibo`、`download=true` 等参数，行为与原 `cf_sv_proxy` 一致。
+
+字段说明详见 `docs/视频解析统一JSON格式3.0.md`。
+
+## ⚠️ 与 PHP 版的行为差异（移植说明）
+
+- 运行环境为边缘节点（UTC 时区）：`/api/douyin/home` 输出的 `create_time` 等时间字段与东八区 PHP 服务器相差 8 小时
+- `json_encode(…, 480)` 的 `JSON_NUMERIC_CHECK` 语义未复刻：个别纯数字字符串字段（如新版 B 站 `cid`）JS 版保持字符串
+- `sv.php` 聚合入口不再回环 HTTP 自转发，而是直接调用解析器模块，`$allowedHosts`/SSRF 防护不再需要
+- 边缘函数单次执行 CPU 时间上限 200ms、代码包 5MB，本项目的纯 I/O 型解析逻辑不受影响
+
+## 📄 许可证
+
+MIT License（见 [LICENSE](LICENSE)），原项目版权归 [JH-Ahua](https://github.com/jiuhunwl/short_videos) 所有。
