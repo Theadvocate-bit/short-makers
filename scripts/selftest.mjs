@@ -8,7 +8,7 @@
  * 联网部分：Bilibili 真实解析（需联网；无 Cookie 时基础解析仍应返回 200）。
  */
 import { detectPlatform, IMPLEMENTED, PLATFORMS } from '../cloud-functions/_lib/platforms.js';
-import { onRequest as parseFn } from '../cloud-functions/parse/[[default]].js';
+import { onRequest as parseFn } from '../cloud-functions/_lib/parse-handler.js';
 
 let passed = 0;
 let failed = 0;
