@@ -95,10 +95,10 @@ async function extractVideoId(url) {
   return id;
 }
 
-// 对应 PHP getRequestHeaders()：微博web端cookie
-function getRequestHeaders() {
+// 对应 PHP getRequestHeaders()：微博web端cookie（用户扫码/粘贴登录后传入）
+function getRequestHeaders(userCookie) {
   return {
-    cookie: "",
+    cookie: (userCookie && String(userCookie).trim()) || "",
     referer: "https://weibo.com/",
     "user-agent":
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
@@ -288,7 +288,7 @@ async function fetchVideoInfo(videoId, headers) {
 }
 
 // 对应 PHP main()
-export async function parse(shareUrl, env) {
+export async function parse(shareUrl, env, userCookie) {
   const url = shareUrl === undefined || shareUrl === null ? "" : String(shareUrl);
 
   if (phpEmpty(url)) {
@@ -300,7 +300,7 @@ export async function parse(shareUrl, env) {
     return { code: 404, msg: `无法从URL中提取视频ID: ${url}` };
   }
 
-  const headers = getRequestHeaders();
+  const headers = getRequestHeaders(userCookie);
   const result = await fetchVideoInfo(videoId, headers);
   return result;
 }
@@ -331,8 +331,10 @@ export async function onRequest(context) {
   if (!input) {
     return jsonResponse({ code: 400, msg: "参数url不能为空" });
   }
+  // 用户登录后携带的 cookie（前端从 localStorage 取）
+  const userCookie = u.searchParams.get("cookie") || "";
   try {
-    return jsonResponse(await parse(input, context.env));
+    return jsonResponse(await parse(input, context.env, userCookie));
   } catch (e) {
     return jsonResponse({
       code: 500,

@@ -60,6 +60,15 @@
       <img id="bili-qr-img" alt="扫码登录二维码" style="width:180px;height:180px;border:1px solid var(--border);border-radius:8px;">
       <p id="bili-qr-tip" class="note">请用哔哩哔哩 App 扫码登录</p>
     </div>
+
+    <div class="login-row" style="margin-top:14px;">
+      <span class="plat-name">微博</span>
+      <span id="weibo-status" class="login-status">未登录</span>
+      <input id="weibo-cookie-input" type="password" placeholder="粘贴微博 Cookie（含 SUB）" style="flex:1;min-width:200px;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;">
+      <button id="weibo-save-btn" onclick="weiboSave()">保存</button>
+      <button id="weibo-logout-btn" onclick="weiboLogout()" style="display:none;">退出</button>
+    </div>
+    <p class="note" style="margin-top:8px;">微博登录方式：在浏览器登录 <a href="https://m.weibo.cn" target="_blank">m.weibo.cn</a> 后，按 F12 → 应用/Application → Cookies，复制整段 Cookie（或至少含 <code>SUB=</code> 那条）粘贴到上面保存。微博扫码接口反爬较严，暂用 Cookie 粘贴方式。</p>
   </div>
 
   <div class="card test-box">
@@ -123,6 +132,10 @@ async function doParse() {
     if (/bilibili\.com|b23\.tv/i.test(input)) {
       const ck = localStorage.getItem('bili_cookie');
       url = '/api/bilibili?url=' + encodeURIComponent(input) + (ck ? '&cookie=' + encodeURIComponent(ck) : '');
+    } else if (/weibo\.com|weibo\.cn/i.test(input)) {
+      // 微博链接：已存 cookie 则带 cookie 走 weibo 接口（可绕过访客墙出数据）
+      const wk = localStorage.getItem('weibo_cookie');
+      url = '/api/weibo?url=' + encodeURIComponent(input) + (wk ? '&cookie=' + encodeURIComponent(wk) : '');
     } else {
       url = '/api/sv?url=' + encodeURIComponent(input);
     }
@@ -203,6 +216,32 @@ async function biliLogin() {
 }
 // 页面加载时恢复登录状态
 updateBiliUI();
+
+// ===== 微博 登录（Cookie 粘贴式） =====
+function setWeiboStatus(text, ok) {
+  const el = document.getElementById('weibo-status');
+  el.textContent = text;
+  el.className = 'login-status' + (ok ? ' ok' : '');
+}
+function updateWeiboUI() {
+  const logged = !!localStorage.getItem('weibo_cookie');
+  document.getElementById('weibo-cookie-input').style.display = logged ? 'none' : '';
+  document.getElementById('weibo-save-btn').style.display = logged ? 'none' : '';
+  document.getElementById('weibo-logout-btn').style.display = logged ? '' : 'none';
+  setWeiboStatus(logged ? '已登录' : '未登录', logged);
+}
+function weiboSave() {
+  const val = document.getElementById('weibo-cookie-input').value.trim();
+  if (!val) { alert('请先粘贴微博 Cookie'); return; }
+  localStorage.setItem('weibo_cookie', val);
+  document.getElementById('weibo-cookie-input').value = '';
+  updateWeiboUI();
+}
+function weiboLogout() {
+  localStorage.removeItem('weibo_cookie');
+  updateWeiboUI();
+}
+updateWeiboUI();
 </script>
 </body>
 </html>
