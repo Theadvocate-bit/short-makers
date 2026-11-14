@@ -1,0 +1,13 @@
+{
+  "cloudFunctions": {
+    "maxDuration": 60
+  },
+  "headers": [
+    {
+      "source": "/index.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache" }
+      ]
+    }
+  ]
+}

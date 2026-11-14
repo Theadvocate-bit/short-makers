@@ -1,0 +1,14 @@
+{
+  "name": "short-makers",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "short_videos 在 EdgeOne Makers 上的部署落地：短视频聚合解析（平台识别 + 各平台解析器 + 媒体直链代理），PHP 解析器移植到 Edge Function",
+  "scripts": {
+    "test": "node scripts/selftest.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}
